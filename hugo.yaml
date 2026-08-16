@@ -1,7 +1,6 @@
 baseURL: "https://YOUR-GITHUB-USERNAME.github.io/glob/"
 languageCode: "en-us"
 title: "Glob"
-theme: ""
 
 # No RSS, no sitemap -- this site is intentionally not optimized for
 # discovery. It's public because hiding is more trouble than it's worth,
