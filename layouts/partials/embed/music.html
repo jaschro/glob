@@ -1,0 +1,19 @@
+{{ $url := .Params.source_url }}
+{{ $embedURL := "" }}
+{{ if in $url "open.spotify.com/" }}
+  {{ $embedURL = replace $url "open.spotify.com/" "open.spotify.com/embed/" }}
+{{ else if in $url "bandcamp.com" }}
+  {{ $embedURL = $url }}
+{{ else if in $url "soundcloud.com/" }}
+  {{ $embedURL = printf "https://w.soundcloud.com/player/?url=%s&auto_play=false" ($url | urlize) }}
+{{ else }}
+  {{ $embedURL = $url }}
+{{ end }}
+<div class="embed embed-music">
+  <iframe
+    src="{{ $embedURL }}"
+    title="{{ .Title }}"
+    loading="lazy"
+    allow="encrypted-media">
+  </iframe>
+</div>

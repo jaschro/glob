@@ -1,0 +1,19 @@
+{{ define "main" }}
+<header class="list-header">
+  <h1>Posts</h1>
+</header>
+
+<ul class="post-stream">
+  {{ range .Pages.ByDate.Reverse }}
+  <li class="post-stream-item">
+    <time datetime="{{ .Date.Format "2006-01-02" }}">{{ .Date.Format "Jan 2, 2006" }}</time>
+    <a href="{{ .RelPermalink }}">{{ .Title }}</a>
+    {{ with .Params.categories }}
+      <span class="post-stream-tags">
+        {{ range . }}<a class="tag" href="{{ "/categories/" | absURL }}{{ . | urlize }}/">{{ . }}</a>{{ end }}
+      </span>
+    {{ end }}
+  </li>
+  {{ end }}
+</ul>
+{{ end }}

@@ -1,0 +1,9 @@
+<div class="embed embed-email">
+  <div class="email-meta">
+    {{ with .Params.email_from }}<span class="email-from">From: {{ . }}</span>{{ end }}
+    {{ with .Params.email_subject }}<span class="email-subject">Subject: {{ . }}</span>{{ end }}
+  </div>
+  <blockquote class="email-body">
+    {{ .Content }}
+  </blockquote>
+</div>

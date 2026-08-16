@@ -1,0 +1,16 @@
+{{ $url := .Params.source_url }}
+{{ $id := "" }}
+{{ if in $url "youtu.be/" }}
+  {{ $id = index (split (index (split $url "youtu.be/") 1) "?") 0 }}
+{{ else if in $url "v=" }}
+  {{ $id = index (split (index (split $url "v=") 1) "&") 0 }}
+{{ end }}
+<div class="embed embed-video">
+  <iframe
+    src="https://www.youtube-nocookie.com/embed/{{ $id }}"
+    title="{{ .Title }}"
+    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+    allowfullscreen
+    loading="lazy">
+  </iframe>
+</div>

@@ -1,0 +1,9 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{ if .IsHome }}{{ .Site.Title }}{{ else }}{{ .Title }} · {{ .Site.Title }}{{ end }}</title>
+
+<!-- Deliberately not optimized for discovery: no sitemap, no RSS, no
+     indexing. Public so a link can be shared, not so it gets found. -->
+<meta name="robots" content="noindex, nofollow">
+
+<link rel="stylesheet" href="{{ "css/style.css" | absURL }}">

@@ -1,0 +1,19 @@
+{{ define "main" }}
+<header class="list-header">
+  <h1>{{ .Site.Title }}</h1>
+  <p class="section-intro">{{ .Site.Params.description }}</p>
+</header>
+
+<h2>Recent</h2>
+<ul class="post-stream">
+  {{ $posts := where .Site.RegularPages "Section" "posts" }}
+  {{ range first 10 $posts.ByDate.Reverse }}
+  <li class="post-stream-item">
+    <time datetime="{{ .Date.Format "2006-01-02" }}">{{ .Date.Format "Jan 2, 2006" }}</time>
+    <a href="{{ .RelPermalink }}">{{ .Title }}</a>
+  </li>
+  {{ end }}
+</ul>
+
+<p><a href="{{ "/posts/" | absURL }}">All posts →</a> · <a href="{{ "/categories/" | absURL }}">Browse by category →</a></p>
+{{ end }}

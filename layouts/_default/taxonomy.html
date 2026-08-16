@@ -1,0 +1,10 @@
+{{ define "main" }}
+<header class="list-header">
+  <h1>Categories</h1>
+</header>
+<ul class="category-list">
+  {{ range .Pages.ByTitle }}
+  <li><a href="{{ .RelPermalink }}">{{ .Title }}</a> <span class="count">({{ len .Pages }})</span></li>
+  {{ end }}
+</ul>
+{{ end }}
