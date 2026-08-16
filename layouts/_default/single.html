@@ -6,9 +6,12 @@
       <div class="post-meta">
         <time datetime="{{ .Date.Format "2006-01-02" }}">{{ .Date.Format "January 2, 2006" }}</time>
         {{ with .Params.categories }}
-          {{ range . }}<a class="tag" href="{{ "/categories/" | absURL }}{{ . | urlize }}/">{{ . }}</a>{{ end }}
+          {{ range . }}<a class="tag" href="{{ "posts/" | relURL }}?category={{ . | urlquery }}">{{ . }}</a>{{ end }}
         {{ end }}
-        {{ with .Params.subcategory }}<span class="tag subtag">{{ . }}</span>{{ end }}
+        {{ with .Params.subcategory }}
+          {{ $cat := index (default (slice "") $.Params.categories) 0 }}
+          <a class="tag subtag" href="{{ "posts/" | relURL }}?category={{ $cat | urlquery }}&subcategory={{ . | urlquery }}">{{ . }}</a>
+        {{ end }}
       </div>
     {{ end }}
   </header>

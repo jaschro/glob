@@ -1,9 +1,11 @@
 <header class="site-header">
-  <a class="site-title" href="{{ "/" | absURL }}">{{ .Site.Title }}</a>
+  <a class="site-title" href="{{ "" | relURL }}">{{ .Site.Title }}</a>
   <nav>
-    <a href="{{ "/posts/" | absURL }}">Posts</a>
-    <a href="{{ "/categories/" | absURL }}">Categories</a>
-    <a href="{{ "/health/" | absURL }}">Health</a>
-    <a href="{{ "/investing/" | absURL }}">Investing</a>
+    <a href="{{ "posts/" | relURL }}">Posts</a>
+    <a href="{{ "health/" | relURL }}">Health</a>
+    <a href="{{ "investing/" | relURL }}">Investing</a>
   </nav>
+  <form class="header-search" action="{{ "posts/" | relURL }}" method="get" role="search">
+    <input type="search" name="q" placeholder="Search…" aria-label="Search posts">
+  </form>
 </header>

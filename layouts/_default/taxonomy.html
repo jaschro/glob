@@ -2,9 +2,13 @@
 <header class="list-header">
   <h1>Categories</h1>
 </header>
+{{ if .Pages }}
 <ul class="category-list">
   {{ range .Pages.ByTitle }}
   <li><a href="{{ .RelPermalink }}">{{ .Title }}</a> <span class="count">({{ len .Pages }})</span></li>
   {{ end }}
 </ul>
+{{ else }}
+<p class="empty-note">No categories yet.</p>
+{{ end }}
 {{ end }}

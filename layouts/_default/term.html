@@ -3,6 +3,7 @@
   <h1>{{ .Title }}</h1>
 </header>
 
+{{ if .Pages }}
 <ul class="post-stream">
   {{ range .Pages.ByDate.Reverse }}
   <li class="post-stream-item">
@@ -12,4 +13,7 @@
   </li>
   {{ end }}
 </ul>
+{{ else }}
+<p class="empty-note">Nothing here yet.</p>
+{{ end }}
 {{ end }}

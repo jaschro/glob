@@ -1,19 +1,59 @@
 {{ define "main" }}
-<header class="list-header">
-  <h1>Posts</h1>
-</header>
+<div class="browse" id="browse-root" data-json-url="{{ "posts/index.json" | absURL }}">
+  <aside class="browse-sidebar">
+    <div class="filter-group">
+      <div class="filter-group-header">
+        <h2>Categories</h2>
+        <button type="button" class="clear-link" data-clear="category" hidden>clear</button>
+      </div>
+      <ul class="filter-tree" id="category-tree">
+        <li class="filter-tree-loading">Loading…</li>
+      </ul>
+    </div>
 
-<ul class="post-stream">
-  {{ range .Pages.ByDate.Reverse }}
-  <li class="post-stream-item">
-    <time datetime="{{ .Date.Format "2006-01-02" }}">{{ .Date.Format "Jan 2, 2006" }}</time>
-    <a href="{{ .RelPermalink }}">{{ .Title }}</a>
-    {{ with .Params.categories }}
-      <span class="post-stream-tags">
-        {{ range . }}<a class="tag" href="{{ "/categories/" | absURL }}{{ . | urlize }}/">{{ . }}</a>{{ end }}
-      </span>
-    {{ end }}
-  </li>
-  {{ end }}
-</ul>
+    <div class="filter-group">
+      <div class="filter-group-header">
+        <h2>Dates</h2>
+        <button type="button" class="clear-link" data-clear="date" hidden>clear</button>
+      </div>
+      <ul class="filter-tree" id="date-tree">
+        <li class="filter-tree-loading">Loading…</li>
+      </ul>
+    </div>
+
+    <button type="button" id="clear-all" class="clear-all-btn" hidden>Clear all filters</button>
+  </aside>
+
+  <div class="browse-main">
+    <header class="list-header browse-header">
+      <h1>Posts</h1>
+      <form class="browse-search" id="browse-search-form" role="search">
+        <input type="search" id="browse-search-input" name="q" placeholder="Search posts…" aria-label="Search posts">
+      </form>
+    </header>
+
+    <p class="browse-status" id="browse-status"></p>
+
+    <ul class="post-stream" id="browse-results"></ul>
+
+    <div class="empty-state" id="browse-empty" hidden>
+      <p>Nothing matches these filters.</p>
+      <button type="button" id="empty-clear-btn">Clear filters</button>
+    </div>
+
+    <noscript>
+      <p class="noscript-note">Filtering and search need JavaScript. Here's everything, unfiltered:</p>
+      <ul class="post-stream">
+        {{ range .Pages.ByDate.Reverse }}
+        <li class="post-stream-item">
+          <time datetime="{{ .Date.Format "2006-01-02" }}">{{ .Date.Format "Jan 2, 2006" }}</time>
+          <a href="{{ .RelPermalink }}">{{ .Title }}</a>
+        </li>
+        {{ end }}
+      </ul>
+    </noscript>
+  </div>
+</div>
+
+<script src="{{ "js/browse.js" | absURL }}" defer></script>
 {{ end }}

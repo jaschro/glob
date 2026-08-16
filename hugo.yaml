@@ -8,11 +8,14 @@ title: "Glob"
 disableKinds:
   - "sitemap"
   - "RSS"
+  # Category browsing now lives in the interactive sidebar on /posts/
+  # (see layouts/posts/list.html + static/js/browse.js), which reads
+  # category/subcategory straight from post frontmatter. Hugo's separate
+  # generated /categories/ pages are redundant with that, so they're off.
+  - "taxonomy"
+  - "term"
 
 enableRobotsTXT: true
-
-taxonomies:
-  category: categories
 
 params:
   description: "A personal archive of things worth keeping."
