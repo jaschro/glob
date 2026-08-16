@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="robots" content="noindex, nofollow">
+<title>Add to Glob</title>
+<style>
+:root{
+  color-scheme: light dark;
+  --fg:#1a1a1a; --bg:#ffffff; --muted:#6b6b6b; --accent:#35526b;
+  --border:#e3e3e3; --ok:#1f8a4c; --bad:#c0392b; --card:#f7f7f7;
+}
+@media (prefers-color-scheme: dark) {
+  :root{ --fg:#e8e8e8; --bg:#14161a; --muted:#9a9a9a; --accent:#8fb4d4; --border:#2b2e33; --card:#1c1e22; }
+}
+*,*::before,*::after{box-sizing:border-box}
+html,body{margin:0;padding:0;background:var(--bg);color:var(--fg);
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;}
+body{max-width:480px;margin:0 auto;padding:1.25rem 1rem 3rem;}
+h1{font-size:1.25rem;margin:0 0 0.25rem;display:flex;align-items:center;justify-content:space-between;gap:0.5rem}
+h1 a{color:var(--muted);text-decoration:none;font-size:0.85rem;font-weight:400}
+.gear{background:none;border:none;font-size:1.2rem;cursor:pointer;color:var(--muted);padding:0.25rem}
+.field{margin-bottom:1rem}
+label{display:block;font-size:0.82rem;color:var(--muted);margin-bottom:0.3rem}
+input,select,textarea{
+  width:100%;padding:0.6rem 0.7rem;border:1px solid var(--border);border-radius:8px;
+  background:var(--card);color:var(--fg);font-size:0.95rem;font-family:inherit;
+}
+textarea{min-height:6rem;resize:vertical}
+.type-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:0.5rem;margin-bottom:1rem}
+.type-btn{
+  padding:0.6rem 0.4rem;border:1px solid var(--border);border-radius:8px;background:var(--card);
+  color:var(--fg);font-size:0.82rem;text-align:center;cursor:pointer;
+}
+.type-btn.active{border-color:var(--accent);color:var(--accent);font-weight:600;background:rgba(53,82,107,0.08)}
+.hidden{display:none !important}
+button.submit{
+  width:100%;padding:0.8rem;border:none;border-radius:8px;background:var(--accent);
+  color:var(--bg);font-size:1rem;font-weight:600;cursor:pointer;margin-top:0.5rem;
+}
+button.submit:disabled{opacity:0.5}
+.status{margin-top:1rem;padding:0.75rem 1rem;border-radius:8px;font-size:0.88rem;display:none}
+.status.ok{display:block;background:rgba(31,138,76,0.12);color:var(--ok)}
+.status.bad{display:block;background:rgba(192,57,43,0.12);color:var(--bad)}
+.status a{color:inherit;font-weight:600}
+.settings{
+  border:1px solid var(--border);border-radius:8px;padding:1rem;margin-bottom:1.25rem;
+  display:none;
+}
+.settings.open{display:block}
+.settings .field:last-child{margin-bottom:0}
+.settings-note{font-size:0.78rem;color:var(--muted);margin-top:0.5rem}
+</style>
+</head>
+<body>
+
+<h1>Add to Glob <button class="gear" id="gear" title="Settings" type="button">&#9881;&#65039;</button></h1>
+<div><a href="../posts/">&larr; back to Glob</a></div>
+
+<div class="settings" id="settings">
+  <div class="field">
+    <label for="cfg-user">GitHub username</label>
+    <input id="cfg-user" type="text" autocapitalize="none" spellcheck="false" placeholder="jaschro">
+  </div>
+  <div class="field">
+    <label for="cfg-repo">Repository</label>
+    <input id="cfg-repo" type="text" autocapitalize="none" spellcheck="false" placeholder="glob">
+  </div>
+  <div class="field">
+    <label for="cfg-token">Personal access token</label>
+    <input id="cfg-token" type="password" autocapitalize="none" spellcheck="false" placeholder="github_pat_…">
+  </div>
+  <p class="settings-note">Stored only in this browser's local storage. Never sent anywhere except directly to api.github.com.</p>
+</div>
+
+<form id="add-form">
+  <div class="type-grid" id="type-grid">
+    <div class="type-btn active" data-type="tweet">Tweet / X</div>
+    <div class="type-btn" data-type="youtube">YouTube</div>
+    <div class="type-btn" data-type="music">Music</div>
+    <div class="type-btn" data-type="powerbi">PowerBI</div>
+    <div class="type-btn" data-type="email">Email</div>
+  </div>
+
+  <div class="field">
+    <label for="f-title">Title</label>
+    <input id="f-title" type="text" required placeholder="What is this?">
+  </div>
+
+  <div class="field">
+    <label for="f-category">Category</label>
+    <input id="f-category" type="text" list="category-list" required placeholder="e.g. Technology">
+    <datalist id="category-list"></datalist>
+  </div>
+
+  <div class="field">
+    <label for="f-subcategory">Subcategory (optional)</label>
+    <input id="f-subcategory" type="text" list="subcategory-list" placeholder="e.g. AI">
+    <datalist id="subcategory-list"></datalist>
+  </div>
+
+  <div class="field" id="url-field">
+    <label for="f-url">Source URL</label>
+    <input id="f-url" type="url" placeholder="https://…">
+  </div>
+
+  <div id="email-fields" class="hidden">
+    <div class="field">
+      <label for="f-email-from">From</label>
+      <input id="f-email-from" type="text" placeholder="sender@example.com">
+    </div>
+    <div class="field">
+      <label for="f-email-subject">Subject</label>
+      <input id="f-email-subject" type="text" placeholder="Subject line">
+    </div>
+    <div class="field">
+      <label for="f-email-body">Body</label>
+      <textarea id="f-email-body" placeholder="Quoted email text…"></textarea>
+    </div>
+  </div>
+
+  <button type="submit" class="submit" id="submit-btn">Add to Glob</button>
+  <div class="status" id="status"></div>
+</form>
+
+<script>
+(function () {
+  "use strict";
+
+  var cfg = { user: "", repo: "", token: "" };
+  var currentType = "tweet";
+
+  var els = {
+    gear: document.getElementById("gear"),
+    settings: document.getElementById("settings"),
+    cfgUser: document.getElementById("cfg-user"),
+    cfgRepo: document.getElementById("cfg-repo"),
+    cfgToken: document.getElementById("cfg-token"),
+    typeGrid: document.getElementById("type-grid"),
+    form: document.getElementById("add-form"),
+    title: document.getElementById("f-title"),
+    category: document.getElementById("f-category"),
+    subcategory: document.getElementById("f-subcategory"),
+    categoryList: document.getElementById("category-list"),
+    subcategoryList: document.getElementById("subcategory-list"),
+    urlField: document.getElementById("url-field"),
+    url: document.getElementById("f-url"),
+    emailFields: document.getElementById("email-fields"),
+    emailFrom: document.getElementById("f-email-from"),
+    emailSubject: document.getElementById("f-email-subject"),
+    emailBody: document.getElementById("f-email-body"),
+    submitBtn: document.getElementById("submit-btn"),
+    status: document.getElementById("status")
+  };
+
+  function loadCfg() {
+    try {
+      Object.assign(cfg, JSON.parse(localStorage.getItem("glob-cfg") || "{}"));
+    } catch (e) { /* ignore malformed storage */ }
+    els.cfgUser.value = cfg.user || "";
+    els.cfgRepo.value = cfg.repo || "";
+    els.cfgToken.value = cfg.token || "";
+    if (!cfg.user || !cfg.repo || !cfg.token) {
+      els.settings.classList.add("open");
+    }
+  }
+
+  function saveCfg() {
+    cfg.user = els.cfgUser.value.trim();
+    cfg.repo = els.cfgRepo.value.trim();
+    cfg.token = els.cfgToken.value.trim();
+    localStorage.setItem("glob-cfg", JSON.stringify(cfg));
+  }
+
+  els.gear.addEventListener("click", function () {
+    els.settings.classList.toggle("open");
+  });
+  [els.cfgUser, els.cfgRepo, els.cfgToken].forEach(function (el) {
+    el.addEventListener("input", saveCfg);
+  });
+
+  els.typeGrid.addEventListener("click", function (e) {
+    var btn = e.target.closest(".type-btn");
+    if (!btn) return;
+    currentType = btn.getAttribute("data-type");
+    Array.prototype.forEach.call(els.typeGrid.children, function (c) {
+      c.classList.toggle("active", c === btn);
+    });
+    var isEmail = currentType === "email";
+    els.emailFields.classList.toggle("hidden", !isEmail);
+    els.urlField.classList.toggle("hidden", isEmail);
+  });
+
+  // Populate category/subcategory suggestions from the live post index.
+  // Failure here is non-fatal -- the form still works, just without autocomplete.
+  function loadSuggestions() {
+    fetch("../posts/index.json")
+      .then(function (res) { return res.ok ? res.json() : []; })
+      .then(function (posts) {
+        var cats = new Set();
+        var subcats = new Set();
+        (posts || []).forEach(function (p) {
+          (p.categories || []).forEach(function (c) { cats.add(c); });
+          if (p.subcategory) subcats.add(p.subcategory);
+        });
+        fillDatalist(els.categoryList, cats);
+        fillDatalist(els.subcategoryList, subcats);
+      })
+      .catch(function () { /* offline or first-ever post -- fine, just no suggestions */ });
+  }
+
+  function fillDatalist(el, values) {
+    el.innerHTML = "";
+    Array.from(values).sort().forEach(function (v) {
+      var opt = document.createElement("option");
+      opt.value = v;
+      el.appendChild(opt);
+    });
+  }
+
+  function pad(n) { return (n < 10 ? "0" : "") + n; }
+
+  function slugify(s) {
+    var slug = s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+    return slug || "untitled";
+  }
+
+  // UTF-8 safe base64 encoding (handles emoji, accents, etc. in titles/notes)
+  function utf8ToBase64(str) {
+    return btoa(unescape(encodeURIComponent(str)));
+  }
+
+  function buildFrontmatter(fields) {
+    var fm = "---\n";
+    fm += "title: " + JSON.stringify(fields.title) + "\n";
+    fm += "date: " + fields.date + "\n";
+    fm += "type: " + fields.type + "\n";
+    fm += "categories: [" + JSON.stringify(fields.category) + "]\n";
+    if (fields.subcategory) fm += "subcategory: " + JSON.stringify(fields.subcategory) + "\n";
+
+    var body = "";
+    if (fields.type === "email") {
+      if (fields.emailFrom) fm += "email_from: " + JSON.stringify(fields.emailFrom) + "\n";
+      if (fields.emailSubject) fm += "email_subject: " + JSON.stringify(fields.emailSubject) + "\n";
+      fm += "---\n\n";
+      body = fields.emailBody || "";
+    } else {
+      fm += "source_url: " + JSON.stringify(fields.url || "") + "\n";
+      fm += "---\n";
+    }
+    return fm + body + "\n";
+  }
+
+  function setStatus(kind, html) {
+    els.status.className = "status " + kind;
+    els.status.innerHTML = html;
+  }
+
+  els.form.addEventListener("submit", function (e) {
+    e.preventDefault();
+    saveCfg();
+
+    if (!cfg.user || !cfg.repo || !cfg.token) {
+      els.settings.classList.add("open");
+      setStatus("bad", "Fill in your GitHub username, repo, and token in Settings first.");
+      return;
+    }
+    var title = els.title.value.trim();
+    var category = els.category.value.trim();
+    if (!title || !category) {
+      setStatus("bad", "Title and category are required.");
+      return;
+    }
+
+    var today = new Date();
+    var dateStr = today.getFullYear() + "-" + pad(today.getMonth() + 1) + "-" + pad(today.getDate());
+    var slug = slugify(title);
+    var filePath = "content/posts/" + dateStr + "-" + slug + ".md";
+
+    var content = buildFrontmatter({
+      title: title,
+      date: dateStr,
+      type: currentType,
+      category: category,
+      subcategory: els.subcategory.value.trim(),
+      url: els.url.value.trim(),
+      emailFrom: els.emailFrom.value.trim(),
+      emailSubject: els.emailSubject.value.trim(),
+      emailBody: els.emailBody.value
+    });
+
+    els.submitBtn.disabled = true;
+    els.submitBtn.textContent = "Adding…";
+    setStatus("", "");
+
+    var apiUrl = "https://api.github.com/repos/" + cfg.user + "/" + cfg.repo + "/contents/" + filePath;
+
+    fetch(apiUrl, {
+      method: "PUT",
+      headers: {
+        "Authorization": "Bearer " + cfg.token,
+        "Accept": "application/vnd.github+json",
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        message: "Add post: " + title,
+        content: utf8ToBase64(content),
+        branch: "main"
+      })
+    })
+      .then(function (res) {
+        if (res.ok) return res.json();
+        return res.json()
+          .catch(function () { return {}; })
+          .then(function (err) {
+            throw new Error((err && err.message) || ("GitHub responded " + res.status));
+          });
+      })
+      .then(function () {
+        setStatus("ok", "Added! It'll appear on the site in a minute or two once the build finishes.");
+        els.form.reset();
+        els.title.focus();
+        loadSuggestions();
+      })
+      .catch(function (err) {
+        setStatus("bad", "Couldn't save: " + escapeHtml(err.message));
+      })
+      .finally(function () {
+        els.submitBtn.disabled = false;
+        els.submitBtn.textContent = "Add to Glob";
+      });
+  });
+
+  function escapeHtml(s) {
+    var d = document.createElement("div");
+    d.textContent = s;
+    return d.innerHTML;
+  }
+
+  loadCfg();
+  loadSuggestions();
+})();
+</script>
+</body>
+</html>
