@@ -87,6 +87,55 @@ async function main() {
     assert.strictEqual(doc.getElementById("post-body-field").classList.contains("hidden"), true);
   });
 
+  await check("pasting a YouTube URL while Tweet is selected auto-switches the type (prevents the broken-embed bug)", async () => {
+    const { window } = await run(async () => ({ ok: true, json: async () => ({}) }), { user: "jaschro", repo: "glob", token: "tkn" });
+    const doc = window.document;
+    assert.strictEqual(doc.querySelector('[data-type="tweet"]').classList.contains("active"), true, "sanity: starts on Tweet");
+    setVal(doc, "f-url", "https://www.youtube.com/watch?v=ncYOVGrbHwo");
+    assert.strictEqual(doc.querySelector('[data-type="youtube"]').classList.contains("active"), true);
+    assert.strictEqual(doc.querySelector('[data-type="tweet"]').classList.contains("active"), false);
+  });
+
+  await check("pasting a Spotify/SoundCloud URL auto-switches to Music", async () => {
+    const { window } = await run(async () => ({ ok: true, json: async () => ({}) }), { user: "jaschro", repo: "glob", token: "tkn" });
+    const doc = window.document;
+    setVal(doc, "f-url", "https://open.spotify.com/track/abc123");
+    assert.strictEqual(doc.querySelector('[data-type="music"]').classList.contains("active"), true);
+  });
+
+  await check("pasting an unrecognized URL leaves the currently-selected type alone", async () => {
+    const { window } = await run(async () => ({ ok: true, json: async () => ({}) }), { user: "jaschro", repo: "glob", token: "tkn" });
+    const doc = window.document;
+    doc.querySelector('[data-type="powerbi"]').dispatchEvent(new window.Event("click", { bubbles: true }));
+    setVal(doc, "f-url", "https://example.com/some-random-page");
+    assert.strictEqual(doc.querySelector('[data-type="powerbi"]').classList.contains("active"), true);
+  });
+
+  await check("opening a mistyped post (YouTube URL saved as tweet) for editing auto-corrects the type", async () => {
+    const rawWrongType = [
+      "---",
+      'title: "Life is Life"',
+      "date: 2026-08-16",
+      "type: tweet",
+      'categories: ["Music"]',
+      'source_url: "https://www.youtube.com/watch?v=pATX-lV0VFk"',
+      "---",
+      "",
+      ""
+    ].join("\n");
+    const editUrl = "https://jaschro.github.io/glob/add/?edit=2026-08-16-life-is-life.md";
+    const mockFetch = (url, opts) => {
+      if (!opts || !opts.method) {
+        return { ok: true, json: async () => ({ content: Buffer.from(rawWrongType, "utf8").toString("base64"), sha: "sha1" }) };
+      }
+      return { ok: true, json: async () => ({}) };
+    };
+    const { window } = await run(mockFetch, { user: "jaschro", repo: "glob", token: "tkn" }, editUrl);
+    const doc = window.document;
+    assert.strictEqual(doc.querySelector('[data-type="youtube"]').classList.contains("active"), true, "should self-correct from tweet to youtube");
+    assert.strictEqual(doc.getElementById("f-url").value, "https://www.youtube.com/watch?v=pATX-lV0VFk");
+  });
+
   await check("tweet type (default) shows URL and note fields, hides body field", async () => {
     const { window } = await run(async () => ({ ok: true, json: async () => ({}) }), { user: "jaschro", repo: "glob", token: "tkn" });
     const doc = window.document;
@@ -213,6 +262,34 @@ async function main() {
     assert.ok(decoded.includes('subcategory: "AI"'));
     assert.ok(decoded.includes('source_url: "https://twitter.com/x/status/123"'));
     assert.strictEqual(doc.getElementById("f-title").value, "", "form should reset after success");
+  });
+
+  await check("a successful add shows a direct View post link, not just a wait-and-see message", async () => {
+    const { window } = await run(async () => ({ ok: true, json: async () => ({}) }), { user: "jaschro", repo: "glob", token: "tkn123" });
+    const doc = window.document;
+    setVal(doc, "f-title", "Life is Life");
+    setVal(doc, "f-category", "Music");
+    submit(doc);
+    await new Promise((r) => setTimeout(r, 30));
+    const statusHtml = doc.getElementById("status").innerHTML;
+    assert.ok(statusHtml.includes("View post"));
+    assert.ok(statusHtml.includes("posts/"), "link should point at the new post's actual URL");
+  });
+
+  await check("a duplicate-title collision gets a clear explanation, not the raw GitHub 'sha' error", async () => {
+    const { window } = await run(
+      async () => ({ ok: false, status: 422, json: async () => ({ message: 'Invalid request.\n\n"sha" wasn\'t supplied.' }) }),
+      { user: "jaschro", repo: "glob", token: "tkn123" }
+    );
+    const doc = window.document;
+    setVal(doc, "f-title", "Life is Life");
+    setVal(doc, "f-category", "Music");
+    submit(doc);
+    await new Promise((r) => setTimeout(r, 30));
+    const statusHtml = doc.getElementById("status").innerHTML;
+    assert.ok(statusHtml.includes("already exists"));
+    assert.ok(statusHtml.includes("Check the existing post"));
+    assert.ok(!statusHtml.includes('"sha" wasn'), 'raw GitHub API wording should not leak through');
   });
 
   await check("email submission puts the body after frontmatter, not in it", async () => {

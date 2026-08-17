@@ -318,14 +318,36 @@ button.delete-btn:disabled{opacity:0.5}
     els.postBodyField.classList.toggle("hidden", !v.postBody);
   }
 
+  function setActiveType(type) {
+    currentType = type;
+    Array.prototype.forEach.call(els.typeGrid.children, function (c) {
+      c.classList.toggle("active", c.getAttribute("data-type") === type);
+    });
+    applyTypeVisibility();
+  }
+
   els.typeGrid.addEventListener("click", function (e) {
     var btn = e.target.closest(".type-btn");
     if (!btn) return;
-    currentType = btn.getAttribute("data-type");
-    Array.prototype.forEach.call(els.typeGrid.children, function (c) {
-      c.classList.toggle("active", c === btn);
-    });
-    applyTypeVisibility();
+    setActiveType(btn.getAttribute("data-type"));
+  });
+
+  // Guesses the right type from a pasted URL -- this is what's supposed to
+  // stop "pasted a YouTube link but Tweet was still selected" from silently
+  // producing a broken embed, which is exactly what happened the first time.
+  // Only recognizes clearly-identifiable URLs; anything else leaves the
+  // current type alone.
+  function detectTypeFromUrl(url) {
+    if (!url) return null;
+    if (/(youtube\.com\/(watch|shorts)|youtu\.be\/)/i.test(url)) return "youtube";
+    if (/(open\.spotify\.com|soundcloud\.com|bandcamp\.com)/i.test(url)) return "music";
+    if (/(twitter\.com|x\.com)\/[^/]+\/status/i.test(url)) return "tweet";
+    return null;
+  }
+
+  els.url.addEventListener("input", function () {
+    var detected = detectTypeFromUrl(els.url.value.trim());
+    if (detected && detected !== currentType) setActiveType(detected);
   });
 
   // Populate category/subcategory suggestions from the live post index.
@@ -563,11 +585,7 @@ button.delete-btn:disabled{opacity:0.5}
   function fillFormFromParsed(parsed) {
     var f = parsed.fields;
     var type = FIELD_VISIBILITY[f.type] ? f.type : "tweet";
-    currentType = type;
-    Array.prototype.forEach.call(els.typeGrid.children, function (c) {
-      c.classList.toggle("active", c.getAttribute("data-type") === type);
-    });
-    applyTypeVisibility();
+    setActiveType(type);
 
     els.title.value = f.title || "";
     els.category.value = (f.categories && f.categories[0]) || "";
@@ -575,6 +593,12 @@ button.delete-btn:disabled{opacity:0.5}
     els.url.value = f.source_url || "";
     els.emailFrom.value = f.email_from || "";
     els.emailSubject.value = f.email_subject || "";
+
+    // Catches posts saved with the wrong type selected (e.g. a YouTube link
+    // saved as "tweet" because Tweet was still the active button) -- opening
+    // Edit auto-corrects the type so a Save immediately fixes the embed.
+    var detected = detectTypeFromUrl(f.source_url || "");
+    if (detected && detected !== type) setActiveType(detected);
 
     if (type === "email") {
       els.emailBody.value = parsed.body || "";
@@ -739,19 +763,30 @@ button.delete-btn:disabled{opacity:0.5}
           var slugPart = editState.path.replace(/^content\/posts\//, "").replace(/\.md$/, "");
           setStatus("ok", 'Saved. <a href="../posts/' + slugPart + '/">View post</a>');
         } else {
-          setStatus("ok", "Added! It'll appear on the site in a minute or two once the build finishes.");
+          // A direct link, not just "check back in a minute" -- the site's
+          // own page listing is cached for up to 10 minutes, so it can look
+          // like nothing happened even when the save genuinely succeeded.
+          setStatus("ok", 'Added! <a href="../posts/' + dateStr + '-' + slug + '/">View post</a> (may take a minute or two to build).');
           els.form.reset();
-          currentType = "tweet";
-          Array.prototype.forEach.call(els.typeGrid.children, function (c) {
-            c.classList.toggle("active", c.getAttribute("data-type") === "tweet");
-          });
-          applyTypeVisibility();
+          setActiveType("tweet");
           els.title.focus();
         }
         loadSuggestions();
       })
       .catch(function (err) {
-        setStatus("bad", "Couldn't save: " + escapeHtml(err.message));
+        var msg = err && err.message || "";
+        if (!editState && /\bsha\b/i.test(msg)) {
+          // GitHub's Contents API rejects a create-new PUT with this message
+          // when a file already exists at that path -- which for us means a
+          // post with this exact title was already added today. That's
+          // almost always because an earlier submission actually succeeded
+          // (the cached Posts list just didn't reflect it yet) and this is a
+          // resubmission, not a new failure.
+          setStatus("bad", 'A post titled "' + escapeHtml(title) + '" for today already exists -- it likely saved the first time. ' +
+            '<a href="../posts/' + dateStr + '-' + slug + '/">Check the existing post</a>, or change the title slightly to add a separate one.');
+        } else {
+          setStatus("bad", "Couldn't save: " + escapeHtml(msg));
+        }
       })
       .finally(function () {
         els.submitBtn.disabled = false;
