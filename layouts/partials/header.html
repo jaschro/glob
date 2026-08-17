@@ -7,7 +7,13 @@
     <a href="{{ "add/" | relURL }}" class="nav-add">+ Add</a>
     <a href="{{ "add/" | relURL }}?settings=1" class="nav-gear" title="GitHub username, repo &amp; PAT">&#9881;&#65039;</a>
   </nav>
+  {{/* The Posts list page has its own live search box that filters as you
+       type. Showing this one there too would put two search boxes on the
+       same screen doing different things, so it's hidden on that page only
+       -- it still appears on individual posts, Health, Investing, etc. */}}
+  {{ if not (and (eq .Kind "section") (eq .Section "posts")) }}
   <form class="header-search" action="{{ "posts/" | relURL }}" method="get" role="search">
     <input type="search" name="q" placeholder="Search…" aria-label="Search posts">
   </form>
+  {{ end }}
 </header>

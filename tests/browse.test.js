@@ -47,13 +47,16 @@ const SHELL = `<!DOCTYPE html><html><body>
 </div>
 </body></html>`;
 
+// `text` mirrors what layouts/posts/list.json emits: the post body, plus
+// sender/subject for emails. Kept deliberately distinct from the titles so
+// body-match and title-match cases can be told apart.
 const FIXTURE = [
-  { title: "A good thread on prompt design", url: "/glob/posts/1/", date: "2026-08-10", type: "tweet", categories: ["Technology"], subcategory: "AI" },
-  { title: "Clear explainer on how CRDTs work", url: "/glob/posts/2/", date: "2026-08-12", type: "youtube", categories: ["Technology"], subcategory: "Distributed Systems" },
-  { title: "Really good live set for working", url: "/glob/posts/3/", date: "2026-08-13", type: "music", categories: ["Music"], subcategory: "Live Sets" },
-  { title: "Portfolio allocation snapshot", url: "/glob/posts/4/", date: "2026-08-14", type: "powerbi", categories: ["Investing"], subcategory: "Snapshots" },
-  { title: "Note on the utility billing mixup", url: "/glob/posts/5/", date: "2026-08-15", type: "email", categories: ["Personal"], subcategory: "Admin" },
-  { title: "Another AI thread from last year", url: "/glob/posts/6/", date: "2025-03-02", type: "tweet", categories: ["Technology"], subcategory: "AI" }
+  { title: "A good thread on prompt design", url: "/glob/posts/1/", date: "2026-08-10", type: "tweet", categories: ["Technology"], subcategory: "AI", text: "Worth reading for the third reply about few-shot examples." },
+  { title: "Clear explainer on how CRDTs work", url: "/glob/posts/2/", date: "2026-08-12", type: "youtube", categories: ["Technology"], subcategory: "Distributed Systems", text: "Conflict-free replicated data types, explained with animations." },
+  { title: "Really good live set for working", url: "/glob/posts/3/", date: "2026-08-13", type: "music", categories: ["Music"], subcategory: "Live Sets", text: "Recorded at a warehouse in Berlin over three hours." },
+  { title: "Portfolio allocation snapshot", url: "/glob/posts/4/", date: "2026-08-14", type: "powerbi", categories: ["Investing"], subcategory: "Snapshots", text: "Allocation drifted toward equities this quarter." },
+  { title: "Note on the utility billing mixup", url: "/glob/posts/5/", date: "2026-08-15", type: "email", categories: ["Personal"], subcategory: "Admin", text: "The duplicate charge has been reversed. billing@utilityco.example Re: Account correction confirmed" },
+  { title: "Another AI thread from last year", url: "/glob/posts/6/", date: "2025-03-02", type: "tweet", categories: ["Technology"], subcategory: "AI", text: "Older thread, still relevant." }
 ];
 
 async function run(url, fetchImpl) {
@@ -88,6 +91,56 @@ async function main() {
     assert.strictEqual(win.document.querySelectorAll("#browse-results li").length, 0);
     assert.strictEqual(win.document.getElementById("browse-empty").hidden, false);
     assert.strictEqual(win.document.getElementById("browse-results").hidden, true);
+  });
+
+  // The header search box on every other page is a plain form that just
+  // navigates here with ?q=... -- so this handoff is the only thing making
+  // that box work at all. It's also why the header box is hidden on this
+  // one page (the live search replaces it), see layouts/partials/header.html.
+  await check("a ?q= handed over from the header search filters and pre-fills the box", async () => {
+    const win = await run("http://localhost/posts/?q=CRDT");
+    assert.deepStrictEqual(resultTitles(win), ["Clear explainer on how CRDTs work"]);
+    assert.strictEqual(win.document.getElementById("browse-search-input").value, "CRDT",
+      "the in-page box should show the term carried over from the header search");
+  });
+
+  await check("search matches words that appear only in the post body, not just the title", async () => {
+    const win = await run("http://localhost/posts/?q=warehouse");
+    assert.deepStrictEqual(resultTitles(win), ["Really good live set for working"],
+      '"warehouse" appears only in that post\'s body copy');
+  });
+
+  await check("a body match shows an excerpt with the term highlighted", async () => {
+    const win = await run("http://localhost/posts/?q=warehouse");
+    const snip = win.document.querySelector("#browse-results .result-snippet");
+    assert.ok(snip, "expected an excerpt under the result");
+    assert.strictEqual(snip.querySelector("mark").textContent, "warehouse");
+    assert.ok(snip.textContent.includes("Recorded at a"), "excerpt should carry surrounding context");
+  });
+
+  await check("a title-only match shows no excerpt (nothing to explain)", async () => {
+    const win = await run("http://localhost/posts/?q=CRDT");
+    assert.deepStrictEqual(resultTitles(win), ["Clear explainer on how CRDTs work"]);
+    assert.strictEqual(win.document.querySelector("#browse-results .result-snippet"), null);
+  });
+
+  await check("email sender/subject are searchable too", async () => {
+    const win = await run("http://localhost/posts/?q=utilityco");
+    assert.deepStrictEqual(resultTitles(win), ["Note on the utility billing mixup"]);
+  });
+
+  await check("body text is matched case-insensitively", async () => {
+    const win = await run("http://localhost/posts/?q=EQUITIES");
+    assert.deepStrictEqual(resultTitles(win), ["Portfolio allocation snapshot"]);
+  });
+
+  await check("excerpt text is inserted as text, never parsed as HTML", async () => {
+    const evil = [{ title: "Sneaky", url: "/glob/posts/9/", date: "2026-08-16", type: "post", categories: ["X"], subcategory: null, text: 'before <img src=x onerror=alert(1)> findme after' }];
+    const win = await run("http://localhost/posts/?q=findme", async () => ({ ok: true, json: async () => evil }));
+    const snip = win.document.querySelector("#browse-results .result-snippet");
+    assert.ok(snip, "expected an excerpt");
+    assert.strictEqual(snip.querySelectorAll("img").length, 0, "raw markup in post text must not become real elements");
+    assert.ok(snip.textContent.includes("<img"), "it should appear as literal text instead");
   });
 
   await check("category filter narrows correctly", async () => {

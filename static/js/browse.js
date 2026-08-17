@@ -224,7 +224,10 @@
     }
     if (state.q) {
       var needle = state.q.toLowerCase();
-      var haystack = [item.title, item.subcategory, item.type]
+      // item.text is the post's body copy (plus sender/subject on emails),
+      // supplied by layouts/posts/list.json -- without it, search only ever
+      // matched titles and metadata.
+      var haystack = [item.title, item.subcategory, item.type, item.text]
         .concat(item.categories || [])
         .filter(Boolean)
         .join(" ")
@@ -232,6 +235,24 @@
       if (haystack.indexOf(needle) === -1) return false;
     }
     return true;
+  }
+
+  // Builds a short excerpt around the search term so a result that matched
+  // on body text shows *why* it matched, instead of looking like an
+  // unrelated title. Returns null when the body doesn't contain the term
+  // (e.g. it matched on the title), in which case no excerpt is shown.
+  function makeSnippet(text, q) {
+    if (!text || !q) return null;
+    var idx = text.toLowerCase().indexOf(q.toLowerCase());
+    if (idx === -1) return null;
+    var pad = 60;
+    var start = Math.max(0, idx - pad);
+    var end = Math.min(text.length, idx + q.length + pad);
+    return {
+      before: (start > 0 ? "…" : "") + text.slice(start, idx),
+      match: text.slice(idx, idx + q.length),
+      after: text.slice(idx + q.length, end) + (end < text.length ? "…" : "")
+    };
   }
 
   function render() {
@@ -271,6 +292,22 @@
       a.href = item.url;
       a.textContent = item.title;
       li.appendChild(a);
+
+      if (state.q) {
+        var snip = makeSnippet(item.text, state.q);
+        if (snip) {
+          var p = document.createElement("p");
+          p.className = "result-snippet";
+          // Built from text nodes, never innerHTML -- post content is
+          // arbitrary text and must not be interpreted as markup here.
+          p.appendChild(document.createTextNode(snip.before));
+          var mark = document.createElement("mark");
+          mark.textContent = snip.match;
+          p.appendChild(mark);
+          p.appendChild(document.createTextNode(snip.after));
+          li.appendChild(p);
+        }
+      }
 
       els.results.appendChild(li);
     });

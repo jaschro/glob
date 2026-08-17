@@ -1,13 +1,24 @@
 [
   {{ range $i, $p := .Pages.ByDate.Reverse }}
     {{ if $i }},{{ end }}
+    {{/* Searchable free text: the post body, plus the sender/subject on
+         emails (which live in frontmatter but are real content). .Plain is
+         the rendered body with HTML stripped, so embed markup doesn't
+         pollute the index. Whitespace is collapsed to keep the file small.
+         Note: trim must be called directly, not piped -- a piped value
+         becomes trim's LAST argument, which silently returns "". */}}
+    {{ $searchText := $p.Plain }}
+    {{ with $p.Params.email_from }}{{ $searchText = printf "%s %s" $searchText . }}{{ end }}
+    {{ with $p.Params.email_subject }}{{ $searchText = printf "%s %s" $searchText . }}{{ end }}
+    {{ $searchText = trim (replaceRE "\\s+" " " $searchText) " " }}
     {
       "title": {{ $p.Title | jsonify }},
       "url": {{ $p.RelPermalink | jsonify }},
       "date": {{ $p.Date.Format "2006-01-02" | jsonify }},
       "type": {{ $p.Params.type | jsonify }},
       "categories": {{ $p.Params.categories | jsonify }},
-      "subcategory": {{ $p.Params.subcategory | jsonify }}
+      "subcategory": {{ $p.Params.subcategory | jsonify }},
+      "text": {{ $searchText | jsonify }}
     }
   {{ end }}
 ]

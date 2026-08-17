@@ -129,6 +129,25 @@ a { color: var(--accent); }
   min-width: 5.5rem;
 }
 
+.result-snippet {
+  flex-basis: 100%;
+  margin: 0.1rem 0 0.2rem 6.25rem;
+  font-size: 0.85rem;
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.result-snippet mark {
+  background: rgba(120, 160, 200, 0.32);
+  color: inherit;
+  padding: 0 0.12rem;
+  border-radius: 2px;
+}
+
+@media (max-width: 520px) {
+  .result-snippet { margin-left: 0; }
+}
+
 .page-list { list-style: none; padding: 0; }
 .page-list li { padding: 0.4rem 0; border-bottom: 1px solid var(--border); }
 
