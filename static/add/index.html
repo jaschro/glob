@@ -44,6 +44,12 @@ button.submit{
   color:var(--bg);font-size:1rem;font-weight:600;cursor:pointer;margin-top:0.5rem;
 }
 button.submit:disabled{opacity:0.5}
+.test-btn{
+  width:100%;padding:0.6rem;border:1px solid var(--border);border-radius:8px;background:transparent;
+  color:var(--fg);font-size:0.85rem;cursor:pointer;margin-top:0.5rem;
+}
+.test-btn:hover{border-color:var(--accent);color:var(--accent)}
+.test-btn:disabled{opacity:0.5}
 .danger-zone{margin-top:1.5rem;padding-top:1.25rem;border-top:1px solid var(--border)}
 button.delete-btn{
   width:100%;padding:0.7rem;border:1px solid var(--bad);border-radius:8px;background:transparent;
@@ -155,6 +161,7 @@ button.delete-btn:disabled{opacity:0.5}
     <input id="cfg-token" type="password" autocapitalize="none" spellcheck="false" placeholder="github_pat_…">
   </div>
   <button type="button" class="submit" id="settings-save">Save</button>
+  <button type="button" class="test-btn" id="test-connection">Test connection</button>
   <p class="settings-note" id="settings-status" aria-live="polite"></p>
   <p class="settings-note">Stored only in this browser's local storage. Never sent anywhere except directly to api.github.com.</p>
 </div>
@@ -179,6 +186,7 @@ button.delete-btn:disabled{opacity:0.5}
     screenSettings: document.getElementById("screen-settings"),
     settingsDone: document.getElementById("settings-done"),
     settingsSave: document.getElementById("settings-save"),
+    testConnection: document.getElementById("test-connection"),
     settingsStatus: document.getElementById("settings-status"),
     cfgUser: document.getElementById("cfg-user"),
     cfgRepo: document.getElementById("cfg-repo"),
@@ -240,16 +248,31 @@ button.delete-btn:disabled{opacity:0.5}
     localStorage.setItem("glob-cfg", JSON.stringify(cfg));
   }
 
+  // Shared gate for leaving Settings: this is the fix for the bug where
+  // "Save" (or the back link) would switch to the Add screen even with an
+  // incomplete username/repo/token, only for the Add form's own submit
+  // check to bounce you straight back to Settings -- looking like nothing
+  // was ever actually saved. Now nothing lets you leave with a gap.
+  function tryLeaveSettings() {
+    saveCfg();
+    if (!cfg.user || !cfg.repo || !cfg.token) {
+      if (els.settingsStatus) els.settingsStatus.textContent = "Fill in all three fields (username, repo, and token) before continuing.";
+      return false;
+    }
+    if (els.settingsStatus) els.settingsStatus.textContent = "Saved.";
+    return true;
+  }
+
   els.gear.addEventListener("click", function () {
     showScreen("settings");
   });
   els.settingsDone.addEventListener("click", function (e) {
     e.preventDefault();
+    if (!tryLeaveSettings()) return;
     showScreen("main");
   });
   els.settingsSave.addEventListener("click", function () {
-    saveCfg();
-    if (els.settingsStatus) els.settingsStatus.textContent = "Saved.";
+    if (!tryLeaveSettings()) return;
     if (pendingEditFile) {
       var f = pendingEditFile;
       pendingEditFile = null;
@@ -260,6 +283,31 @@ button.delete-btn:disabled{opacity:0.5}
   });
   [els.cfgUser, els.cfgRepo, els.cfgToken].forEach(function (el) {
     el.addEventListener("input", saveCfg);
+  });
+
+  els.testConnection.addEventListener("click", function () {
+    saveCfg();
+    if (!cfg.user || !cfg.repo || !cfg.token) {
+      if (els.settingsStatus) els.settingsStatus.textContent = "Fill in all three fields first.";
+      return;
+    }
+    els.testConnection.disabled = true;
+    if (els.settingsStatus) els.settingsStatus.textContent = "Testing…";
+    githubGetRepo()
+      .then(function (repo) {
+        var canPush = !!(repo && repo.permissions && repo.permissions.push);
+        if (els.settingsStatus) {
+          els.settingsStatus.textContent = canPush
+            ? "Connected. \"" + cfg.user + "/" + cfg.repo + "\" is reachable and this token can save posts to it."
+            : "Connected to \"" + cfg.user + "/" + cfg.repo + "\", but this token can't write to it, so posts won't save. Check the token's permissions.";
+        }
+      })
+      .catch(function (err) {
+        if (els.settingsStatus) els.settingsStatus.textContent = "Couldn't connect: " + err.message;
+      })
+      .finally(function () {
+        els.testConnection.disabled = false;
+      });
   });
 
   function applyTypeVisibility() {
@@ -417,6 +465,27 @@ button.delete-btn:disabled{opacity:0.5}
   // Fetches an existing file's content + sha, for the Edit flow.
   function githubGet(filePath) {
     var apiUrl = "https://api.github.com/repos/" + cfg.user + "/" + cfg.repo + "/contents/" + filePath;
+    return fetch(apiUrl, {
+      headers: {
+        "Authorization": "Bearer " + cfg.token,
+        "Accept": "application/vnd.github+json"
+      }
+    }).then(function (res) {
+      if (res.ok) return res.json();
+      return res.json()
+        .catch(function () { return {}; })
+        .then(function (err) {
+          throw new Error((err && err.message) || ("GitHub responded " + res.status));
+        });
+    });
+  }
+
+  // Checks that the saved username/repo/token combo actually works, and
+  // whether the token can write to the repo -- used by "Test connection"
+  // so a bad or under-scoped token surfaces immediately in Settings instead
+  // of only after a post silently fails to save.
+  function githubGetRepo() {
+    var apiUrl = "https://api.github.com/repos/" + cfg.user + "/" + cfg.repo;
     return fetch(apiUrl, {
       headers: {
         "Authorization": "Bearer " + cfg.token,
@@ -700,8 +769,16 @@ button.delete-btn:disabled{opacity:0.5}
   loadSuggestions();
   applyTypeVisibility();
 
-  var editParam = new URLSearchParams(window.location.search).get("edit");
-  if (editParam) enterEditMode(editParam);
+  var searchParams = new URLSearchParams(window.location.search);
+  var editParam = searchParams.get("edit");
+  if (editParam) {
+    enterEditMode(editParam);
+  } else if (searchParams.get("settings")) {
+    // Reached via the gear icon on the main site -- open Settings directly,
+    // regardless of whether credentials are already saved, so this doubles
+    // as "review/update my PAT" any time, not just first-time setup.
+    showScreen("settings");
+  }
 })();
 </script>
 </body>

@@ -116,6 +116,75 @@ async function main() {
     assert.strictEqual(JSON.parse(window.localStorage.getItem("glob-cfg")).token, "tkn999");
   });
 
+  await check("Save on Settings refuses to leave with an incomplete PAT (the reported bounce-back bug)", async () => {
+    const { window } = await run(async () => ({ ok: true, json: async () => ({}) }));
+    const doc = window.document;
+    setVal(doc, "cfg-user", "jaschro");
+    setVal(doc, "cfg-repo", "glob");
+    // token left blank on purpose
+    doc.getElementById("settings-save").dispatchEvent(new window.Event("click", { bubbles: true }));
+    assert.strictEqual(doc.getElementById("screen-settings").classList.contains("on"), true, "should stay on Settings, not silently reveal the Add screen");
+    assert.strictEqual(doc.getElementById("screen-main").classList.contains("on"), false);
+    assert.ok(doc.getElementById("settings-status").textContent.includes("Fill in all three fields"));
+  });
+
+  await check("the Settings back link also refuses to leave with an incomplete PAT", async () => {
+    const { window } = await run(async () => ({ ok: true, json: async () => ({}) }));
+    const doc = window.document;
+    setVal(doc, "cfg-user", "jaschro");
+    // repo and token left blank
+    doc.getElementById("settings-done").dispatchEvent(new window.Event("click", { bubbles: true, cancelable: true }));
+    assert.strictEqual(doc.getElementById("screen-settings").classList.contains("on"), true);
+  });
+
+  await check('"+Add" gear icon (?settings=1) opens Settings directly even when a PAT is already saved', async () => {
+    const { window } = await run(
+      async () => ({ ok: true, json: async () => ({}) }),
+      { user: "jaschro", repo: "glob", token: "tkn" },
+      "https://jaschro.github.io/glob/add/?settings=1"
+    );
+    const doc = window.document;
+    assert.strictEqual(doc.getElementById("screen-settings").classList.contains("on"), true);
+    assert.strictEqual(doc.getElementById("cfg-user").value, "jaschro");
+  });
+
+  await check("Test connection reports success and write access", async () => {
+    const { window } = await run(
+      async () => ({ ok: true, json: async () => ({ permissions: { push: true } }) }),
+      { user: "jaschro", repo: "glob", token: "tkn" }
+    );
+    const doc = window.document;
+    doc.getElementById("gear").dispatchEvent(new window.Event("click", { bubbles: true }));
+    doc.getElementById("test-connection").dispatchEvent(new window.Event("click", { bubbles: true }));
+    await new Promise((r) => setTimeout(r, 30));
+    assert.ok(doc.getElementById("settings-status").textContent.includes("Connected"));
+    assert.ok(doc.getElementById("settings-status").textContent.includes("can save posts"));
+  });
+
+  await check("Test connection reports read-only access separately from a hard failure", async () => {
+    const { window } = await run(
+      async () => ({ ok: true, json: async () => ({ permissions: { push: false } }) }),
+      { user: "jaschro", repo: "glob", token: "tkn" }
+    );
+    const doc = window.document;
+    doc.getElementById("gear").dispatchEvent(new window.Event("click", { bubbles: true }));
+    doc.getElementById("test-connection").dispatchEvent(new window.Event("click", { bubbles: true }));
+    await new Promise((r) => setTimeout(r, 30));
+    assert.ok(doc.getElementById("settings-status").textContent.includes("can't write to it"));
+  });
+
+  await check("Test connection surfaces the real GitHub error on failure", async () => {
+    const { window } = await run(
+      async () => ({ ok: false, status: 404, json: async () => ({ message: "Not Found" }) }),
+      { user: "jaschro", repo: "glob", token: "tkn" }
+    );
+    const doc = window.document;
+    doc.getElementById("gear").dispatchEvent(new window.Event("click", { bubbles: true }));
+    doc.getElementById("test-connection").dispatchEvent(new window.Event("click", { bubbles: true }));
+    await new Promise((r) => setTimeout(r, 30));
+    assert.ok(doc.getElementById("settings-status").textContent.includes("Not Found"));
+  });
+
   await check("submit blocked when title/category missing -- no request sent", async () => {
     const { window, getRequest } = await run(async () => { throw new Error("must not be called"); }, { user: "jaschro", repo: "glob", token: "tkn" });
     submit(window.document);
