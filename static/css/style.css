@@ -167,6 +167,8 @@ a { color: var(--accent); }
 .edit-link { font-size: 0.8rem; margin-top: 2rem; }
 .edit-link a { color: var(--muted); text-decoration: none; }
 .edit-link a:hover { color: var(--accent); }
+.edit-link a.disabled { color: var(--border); cursor: not-allowed; }
+.edit-link a.disabled:hover { color: var(--border); }
 
 .category-list { list-style: none; padding: 0; }
 .category-list li { padding: 0.4rem 0; }

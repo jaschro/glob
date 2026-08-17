@@ -280,7 +280,7 @@ async function main() {
     assert.ok(doc.getElementById("f-email-body").value.includes("duplicate charge has been reversed"));
     assert.strictEqual(doc.getElementById("email-fields").classList.contains("hidden"), false);
     assert.strictEqual(doc.getElementById("submit-btn").textContent, "Save changes");
-    assert.strictEqual(doc.getElementById("delete-btn").classList.contains("hidden"), false);
+    assert.strictEqual(doc.getElementById("danger-zone").classList.contains("hidden"), false);
   });
 
   await check("saving an edited post PUTs to the original path with the original sha", async () => {
@@ -312,7 +312,7 @@ async function main() {
     const body = JSON.parse(delReq.opts.body);
     assert.strictEqual(body.sha, EXISTING_SHA);
     assert.ok(String(delReq.url).endsWith("content/posts/2026-08-15-utility-bill-note.md"));
-    assert.strictEqual(doc.getElementById("delete-btn").classList.contains("hidden"), true);
+    assert.strictEqual(doc.getElementById("danger-zone").classList.contains("hidden"), true);
     assert.ok(doc.getElementById("status").textContent.includes("Deleted"));
   });
 

@@ -44,10 +44,12 @@ button.submit{
   color:var(--bg);font-size:1rem;font-weight:600;cursor:pointer;margin-top:0.5rem;
 }
 button.submit:disabled{opacity:0.5}
+.danger-zone{margin-top:1.5rem;padding-top:1.25rem;border-top:1px solid var(--border)}
 button.delete-btn{
   width:100%;padding:0.7rem;border:1px solid var(--bad);border-radius:8px;background:transparent;
-  color:var(--bad);font-size:0.9rem;font-weight:600;cursor:pointer;margin-top:0.6rem;
+  color:var(--bad);font-size:0.92rem;font-weight:600;cursor:pointer;
 }
+button.delete-btn:hover{background:rgba(192,57,43,0.08)}
 button.delete-btn:disabled{opacity:0.5}
 .status{margin-top:1rem;padding:0.75rem 1rem;border-radius:8px;font-size:0.88rem;display:none}
 .status.ok{display:block;background:rgba(31,138,76,0.12);color:var(--ok)}
@@ -128,8 +130,11 @@ button.delete-btn:disabled{opacity:0.5}
     </div>
 
     <button type="submit" class="submit" id="submit-btn">Add to Glob</button>
-    <button type="button" class="delete-btn hidden" id="delete-btn">Delete post</button>
     <div class="status" id="status"></div>
+
+    <div class="danger-zone hidden" id="danger-zone">
+      <button type="button" class="delete-btn" id="delete-btn">Delete this post</button>
+    </div>
   </form>
 </div>
 
@@ -196,6 +201,7 @@ button.delete-btn:disabled{opacity:0.5}
     images: document.getElementById("f-images"),
     submitBtn: document.getElementById("submit-btn"),
     deleteBtn: document.getElementById("delete-btn"),
+    dangerZone: document.getElementById("danger-zone"),
     status: document.getElementById("status")
   };
 
@@ -534,7 +540,7 @@ button.delete-btn:disabled{opacity:0.5}
         fillFormFromParsed(parsed);
         if (els.formHeading) els.formHeading.textContent = "Edit post";
         els.submitBtn.textContent = "Save changes";
-        els.deleteBtn.classList.remove("hidden");
+        els.dangerZone.classList.remove("hidden");
         showScreen("main");
       })
       .catch(function (err) {
@@ -557,14 +563,14 @@ button.delete-btn:disabled{opacity:0.5}
       .then(function () {
         setStatus("ok", "Deleted. It'll disappear from the site in a minute or two.");
         els.submitBtn.disabled = true;
-        els.deleteBtn.classList.add("hidden");
+        els.dangerZone.classList.add("hidden");
       })
       .catch(function (err) {
         setStatus("bad", "Couldn't delete: " + escapeHtml(err.message));
       })
       .finally(function () {
         els.deleteBtn.disabled = false;
-        els.deleteBtn.textContent = "Delete post";
+        els.deleteBtn.textContent = "Delete this post";
       });
   });
 
