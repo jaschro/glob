@@ -30,6 +30,8 @@ input,select,textarea{
   background:var(--card);color:var(--fg);font-size:0.95rem;font-family:inherit;
 }
 textarea{min-height:6rem;resize:vertical}
+textarea.tall{min-height:11rem}
+input[type="file"]{padding:0.5rem 0.4rem;background:transparent;border:1px dashed var(--border)}
 .type-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:0.5rem;margin-bottom:1rem}
 .type-btn{
   padding:0.6rem 0.4rem;border:1px solid var(--border);border-radius:8px;background:var(--card);
@@ -42,6 +44,11 @@ button.submit{
   color:var(--bg);font-size:1rem;font-weight:600;cursor:pointer;margin-top:0.5rem;
 }
 button.submit:disabled{opacity:0.5}
+button.delete-btn{
+  width:100%;padding:0.7rem;border:1px solid var(--bad);border-radius:8px;background:transparent;
+  color:var(--bad);font-size:0.9rem;font-weight:600;cursor:pointer;margin-top:0.6rem;
+}
+button.delete-btn:disabled{opacity:0.5}
 .status{margin-top:1rem;padding:0.75rem 1rem;border-radius:8px;font-size:0.88rem;display:none}
 .status.ok{display:block;background:rgba(31,138,76,0.12);color:var(--ok)}
 .status.bad{display:block;background:rgba(192,57,43,0.12);color:var(--bad)}
@@ -55,7 +62,7 @@ button.submit:disabled{opacity:0.5}
 <body>
 
 <div class="screen" id="screen-main">
-  <h1>Add to Glob <button class="gear" id="gear" title="Settings" type="button">&#9881;&#65039;</button></h1>
+  <h1><span id="form-heading">Add to Glob</span> <button class="gear" id="gear" title="Settings" type="button">&#9881;&#65039;</button></h1>
   <div><a href="../posts/">&larr; back to Glob</a></div>
 
   <form id="add-form">
@@ -65,6 +72,7 @@ button.submit:disabled{opacity:0.5}
       <div class="type-btn" data-type="music">Music</div>
       <div class="type-btn" data-type="powerbi">PowerBI</div>
       <div class="type-btn" data-type="email">Email</div>
+      <div class="type-btn" data-type="post">Post</div>
     </div>
 
     <div class="field">
@@ -89,6 +97,11 @@ button.submit:disabled{opacity:0.5}
       <input id="f-url" type="url" placeholder="https://…">
     </div>
 
+    <div class="field" id="note-field">
+      <label for="f-note">Leading text (optional)</label>
+      <textarea id="f-note" placeholder="A note to show above the embed…"></textarea>
+    </div>
+
     <div id="email-fields" class="hidden">
       <div class="field">
         <label for="f-email-from">From</label>
@@ -104,7 +117,18 @@ button.submit:disabled{opacity:0.5}
       </div>
     </div>
 
+    <div class="field hidden" id="post-body-field">
+      <label for="f-post-body">Body</label>
+      <textarea id="f-post-body" class="tall" placeholder="Write the post…"></textarea>
+    </div>
+
+    <div class="field" id="images-field">
+      <label for="f-images">Images (optional)</label>
+      <input id="f-images" type="file" accept="image/*" multiple>
+    </div>
+
     <button type="submit" class="submit" id="submit-btn">Add to Glob</button>
+    <button type="button" class="delete-btn hidden" id="delete-btn">Delete post</button>
     <div class="status" id="status"></div>
   </form>
 </div>
@@ -125,6 +149,8 @@ button.submit:disabled{opacity:0.5}
     <label for="cfg-token">Personal access token</label>
     <input id="cfg-token" type="password" autocapitalize="none" spellcheck="false" placeholder="github_pat_…">
   </div>
+  <button type="button" class="submit" id="settings-save">Save</button>
+  <p class="settings-note" id="settings-status" aria-live="polite"></p>
   <p class="settings-note">Stored only in this browser's local storage. Never sent anywhere except directly to api.github.com.</p>
 </div>
 
@@ -134,17 +160,24 @@ button.submit:disabled{opacity:0.5}
 
   var cfg = { user: "", repo: "", token: "" };
   var currentType = "tweet";
+  // Set once an ?edit= link loads an existing post: { path, sha, originalDate }
+  var editState = null;
+  // Holds an edit target requested before Settings had credentials saved.
+  var pendingEditFile = null;
 
   var els = {
     gear: document.getElementById("gear"),
     screenMain: document.getElementById("screen-main"),
     screenSettings: document.getElementById("screen-settings"),
     settingsDone: document.getElementById("settings-done"),
+    settingsSave: document.getElementById("settings-save"),
+    settingsStatus: document.getElementById("settings-status"),
     cfgUser: document.getElementById("cfg-user"),
     cfgRepo: document.getElementById("cfg-repo"),
     cfgToken: document.getElementById("cfg-token"),
     typeGrid: document.getElementById("type-grid"),
     form: document.getElementById("add-form"),
+    formHeading: document.getElementById("form-heading"),
     title: document.getElementById("f-title"),
     category: document.getElementById("f-category"),
     subcategory: document.getElementById("f-subcategory"),
@@ -152,12 +185,28 @@ button.submit:disabled{opacity:0.5}
     subcategoryList: document.getElementById("subcategory-list"),
     urlField: document.getElementById("url-field"),
     url: document.getElementById("f-url"),
+    noteField: document.getElementById("note-field"),
+    note: document.getElementById("f-note"),
     emailFields: document.getElementById("email-fields"),
     emailFrom: document.getElementById("f-email-from"),
     emailSubject: document.getElementById("f-email-subject"),
     emailBody: document.getElementById("f-email-body"),
+    postBodyField: document.getElementById("post-body-field"),
+    postBody: document.getElementById("f-post-body"),
+    images: document.getElementById("f-images"),
     submitBtn: document.getElementById("submit-btn"),
+    deleteBtn: document.getElementById("delete-btn"),
     status: document.getElementById("status")
+  };
+
+  // Which fields are visible for each capture type.
+  var FIELD_VISIBILITY = {
+    tweet:   { url: true,  note: true,  email: false, postBody: false },
+    youtube: { url: true,  note: true,  email: false, postBody: false },
+    music:   { url: true,  note: true,  email: false, postBody: false },
+    powerbi: { url: true,  note: true,  email: false, postBody: false },
+    email:   { url: false, note: false, email: true,  postBody: false },
+    post:    { url: false, note: false, email: false, postBody: true  }
   };
 
   function showScreen(name) {
@@ -189,9 +238,28 @@ button.submit:disabled{opacity:0.5}
     e.preventDefault();
     showScreen("main");
   });
+  els.settingsSave.addEventListener("click", function () {
+    saveCfg();
+    if (els.settingsStatus) els.settingsStatus.textContent = "Saved.";
+    if (pendingEditFile) {
+      var f = pendingEditFile;
+      pendingEditFile = null;
+      loadPostForEdit(f);
+    } else {
+      showScreen("main");
+    }
+  });
   [els.cfgUser, els.cfgRepo, els.cfgToken].forEach(function (el) {
     el.addEventListener("input", saveCfg);
   });
+
+  function applyTypeVisibility() {
+    var v = FIELD_VISIBILITY[currentType] || FIELD_VISIBILITY.tweet;
+    els.urlField.classList.toggle("hidden", !v.url);
+    els.noteField.classList.toggle("hidden", !v.note);
+    els.emailFields.classList.toggle("hidden", !v.email);
+    els.postBodyField.classList.toggle("hidden", !v.postBody);
+  }
 
   els.typeGrid.addEventListener("click", function (e) {
     var btn = e.target.closest(".type-btn");
@@ -200,9 +268,7 @@ button.submit:disabled{opacity:0.5}
     Array.prototype.forEach.call(els.typeGrid.children, function (c) {
       c.classList.toggle("active", c === btn);
     });
-    var isEmail = currentType === "email";
-    els.emailFields.classList.toggle("hidden", !isEmail);
-    els.urlField.classList.toggle("hidden", isEmail);
+    applyTypeVisibility();
   });
 
   // Populate category/subcategory suggestions from the live post index.
@@ -244,6 +310,39 @@ button.submit:disabled{opacity:0.5}
     return btoa(unescape(encodeURIComponent(str)));
   }
 
+  // UTF-8 safe base64 decoding -- the inverse of utf8ToBase64, used when
+  // loading an existing post's content back from GitHub for editing.
+  function base64ToUtf8(b64) {
+    var clean = String(b64 || "").replace(/\s/g, "");
+    return decodeURIComponent(escape(atob(clean)));
+  }
+
+  // Parses the small, self-authored frontmatter format buildFrontmatter()
+  // writes (not general YAML) back into { fields, body }.
+  function parseFrontmatter(raw) {
+    var fields = {};
+    var body = raw;
+    if (raw.slice(0, 3) === "---") {
+      var end = raw.indexOf("\n---", 3);
+      if (end !== -1) {
+        var fm = raw.slice(3, end).trim();
+        body = raw.slice(end + 4).replace(/^\n+/, "");
+        fm.split("\n").forEach(function (line) {
+          var idx = line.indexOf(":");
+          if (idx === -1) return;
+          var key = line.slice(0, idx).trim();
+          var val = line.slice(idx + 1).trim();
+          if (val.charAt(0) === "[" || val.charAt(0) === '"') {
+            try { fields[key] = JSON.parse(val); } catch (e) { fields[key] = val; }
+          } else {
+            fields[key] = val;
+          }
+        });
+      }
+    }
+    return { fields: fields, body: body.replace(/\n+$/, "") };
+  }
+
   function buildFrontmatter(fields) {
     var fm = "---\n";
     fm += "title: " + JSON.stringify(fields.title) + "\n";
@@ -258,10 +357,20 @@ button.submit:disabled{opacity:0.5}
       if (fields.emailSubject) fm += "email_subject: " + JSON.stringify(fields.emailSubject) + "\n";
       fm += "---\n\n";
       body = fields.emailBody || "";
+    } else if (fields.type === "post") {
+      fm += "---\n\n";
+      body = fields.postBody || "";
     } else {
       fm += "source_url: " + JSON.stringify(fields.url || "") + "\n";
-      fm += "---\n";
+      fm += "---\n\n";
+      body = fields.note || "";
     }
+
+    if (fields.images && fields.images.length) {
+      var imgMd = fields.images.map(function (src) { return "![](" + src + ")"; }).join("\n\n");
+      body = body ? (body + "\n\n" + imgMd) : imgMd;
+    }
+
     return fm + body + "\n";
   }
 
@@ -269,6 +378,195 @@ button.submit:disabled{opacity:0.5}
     els.status.className = "status " + kind;
     els.status.innerHTML = html;
   }
+
+  // Low-level "create/update file in the repo" call, shared by the post
+  // itself and any images that need to go up first. Pass `sha` (the file's
+  // current sha from GitHub) to update an existing file instead of creating
+  // a new one.
+  function githubPut(filePath, base64Content, message, sha) {
+    var apiUrl = "https://api.github.com/repos/" + cfg.user + "/" + cfg.repo + "/contents/" + filePath;
+    var payload = { message: message, content: base64Content, branch: "main" };
+    if (sha) payload.sha = sha;
+    return fetch(apiUrl, {
+      method: "PUT",
+      headers: {
+        "Authorization": "Bearer " + cfg.token,
+        "Accept": "application/vnd.github+json",
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(payload)
+    }).then(function (res) {
+      if (res.ok) return res.json();
+      return res.json()
+        .catch(function () { return {}; })
+        .then(function (err) {
+          throw new Error((err && err.message) || ("GitHub responded " + res.status));
+        });
+    });
+  }
+
+  // Fetches an existing file's content + sha, for the Edit flow.
+  function githubGet(filePath) {
+    var apiUrl = "https://api.github.com/repos/" + cfg.user + "/" + cfg.repo + "/contents/" + filePath;
+    return fetch(apiUrl, {
+      headers: {
+        "Authorization": "Bearer " + cfg.token,
+        "Accept": "application/vnd.github+json"
+      }
+    }).then(function (res) {
+      if (res.ok) return res.json();
+      return res.json()
+        .catch(function () { return {}; })
+        .then(function (err) {
+          throw new Error((err && err.message) || ("GitHub responded " + res.status));
+        });
+    });
+  }
+
+  // Deletes an existing file -- GitHub's Contents API requires the sha
+  // of the version being removed, same as an update.
+  function githubDelete(filePath, sha, message) {
+    var apiUrl = "https://api.github.com/repos/" + cfg.user + "/" + cfg.repo + "/contents/" + filePath;
+    return fetch(apiUrl, {
+      method: "DELETE",
+      headers: {
+        "Authorization": "Bearer " + cfg.token,
+        "Accept": "application/vnd.github+json",
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ message: message, sha: sha, branch: "main" })
+    }).then(function (res) {
+      if (res.ok) return res.json().catch(function () { return {}; });
+      return res.json()
+        .catch(function () { return {}; })
+        .then(function (err) {
+          throw new Error((err && err.message) || ("GitHub responded " + res.status));
+        });
+    });
+  }
+
+  // Reads a list of File objects into { file, base64 } pairs via FileReader.
+  function readImagesAsBase64(files) {
+    return Promise.all(files.map(function (file) {
+      return new Promise(function (resolve, reject) {
+        var reader = new FileReader();
+        reader.onload = function () {
+          var result = String(reader.result || "");
+          var comma = result.indexOf(",");
+          resolve({ file: file, base64: comma === -1 ? "" : result.slice(comma + 1) });
+        };
+        reader.onerror = function () {
+          reject(new Error("Couldn't read image: " + file.name));
+        };
+        reader.readAsDataURL(file);
+      });
+    }));
+  }
+
+  // Uploads each image in turn (GitHub's Contents API is one file per call)
+  // and returns the site-relative paths to reference from the post body.
+  function uploadImages(encoded, dateStr, slug) {
+    var paths = [];
+    var chain = Promise.resolve();
+    encoded.forEach(function (item, i) {
+      chain = chain.then(function () {
+        var ext = (item.file.name.split(".").pop() || "jpg").toLowerCase().replace(/[^a-z0-9]/g, "") || "jpg";
+        var name = dateStr + "-" + slug + "-img" + (i + 1) + "." + ext;
+        return githubPut("static/images/" + name, item.base64, "Add image for: " + slug).then(function () {
+          paths.push("/glob/images/" + name);
+        });
+      });
+    });
+    return chain.then(function () { return paths; });
+  }
+
+  // Populates the form from a parsed existing post, matching whatever
+  // type/fields it was saved with.
+  function fillFormFromParsed(parsed) {
+    var f = parsed.fields;
+    var type = FIELD_VISIBILITY[f.type] ? f.type : "tweet";
+    currentType = type;
+    Array.prototype.forEach.call(els.typeGrid.children, function (c) {
+      c.classList.toggle("active", c.getAttribute("data-type") === type);
+    });
+    applyTypeVisibility();
+
+    els.title.value = f.title || "";
+    els.category.value = (f.categories && f.categories[0]) || "";
+    els.subcategory.value = f.subcategory || "";
+    els.url.value = f.source_url || "";
+    els.emailFrom.value = f.email_from || "";
+    els.emailSubject.value = f.email_subject || "";
+
+    if (type === "email") {
+      els.emailBody.value = parsed.body || "";
+    } else if (type === "post") {
+      els.postBody.value = parsed.body || "";
+    } else {
+      els.note.value = parsed.body || "";
+    }
+  }
+
+  // Called when the page is opened with ?edit=<filename> from a post page's
+  // Edit link. Needs credentials first -- if they're missing, remembers the
+  // request and resumes once Settings is saved.
+  function enterEditMode(filename) {
+    if (!cfg.user || !cfg.repo || !cfg.token) {
+      pendingEditFile = filename;
+      showScreen("settings");
+      if (els.settingsStatus) els.settingsStatus.textContent = "Add your GitHub details, then Save to continue editing.";
+      return;
+    }
+    loadPostForEdit(filename);
+  }
+
+  function loadPostForEdit(filename) {
+    var path = "content/posts/" + filename;
+    setStatus("", "");
+    els.submitBtn.disabled = true;
+    els.submitBtn.textContent = "Loading…";
+
+    githubGet(path)
+      .then(function (data) {
+        var raw = base64ToUtf8(data.content || "");
+        var parsed = parseFrontmatter(raw);
+        editState = { path: path, sha: data.sha, originalDate: parsed.fields.date || "" };
+        fillFormFromParsed(parsed);
+        if (els.formHeading) els.formHeading.textContent = "Edit post";
+        els.submitBtn.textContent = "Save changes";
+        els.deleteBtn.classList.remove("hidden");
+        showScreen("main");
+      })
+      .catch(function (err) {
+        showScreen("main");
+        setStatus("bad", "Couldn't load that post: " + escapeHtml(err.message));
+      })
+      .finally(function () {
+        els.submitBtn.disabled = false;
+        if (els.submitBtn.textContent === "Loading…") els.submitBtn.textContent = "Add to Glob";
+      });
+  }
+
+  els.deleteBtn.addEventListener("click", function () {
+    if (!editState) return;
+    if (!window.confirm("Delete this post? This can't be undone.")) return;
+
+    els.deleteBtn.disabled = true;
+    els.deleteBtn.textContent = "Deleting…";
+    githubDelete(editState.path, editState.sha, "Delete post: " + (els.title.value.trim() || editState.path))
+      .then(function () {
+        setStatus("ok", "Deleted. It'll disappear from the site in a minute or two.");
+        els.submitBtn.disabled = true;
+        els.deleteBtn.classList.add("hidden");
+      })
+      .catch(function (err) {
+        setStatus("bad", "Couldn't delete: " + escapeHtml(err.message));
+      })
+      .finally(function () {
+        els.deleteBtn.disabled = false;
+        els.deleteBtn.textContent = "Delete post";
+      });
+  });
 
   els.form.addEventListener("submit", function (e) {
     e.preventDefault();
@@ -285,55 +583,63 @@ button.submit:disabled{opacity:0.5}
       setStatus("bad", "Title and category are required.");
       return;
     }
+    if (currentType === "post" && !els.postBody.value.trim()) {
+      setStatus("bad", "Body is required for a Post.");
+      return;
+    }
 
     var today = new Date();
-    var dateStr = today.getFullYear() + "-" + pad(today.getMonth() + 1) + "-" + pad(today.getDate());
+    var todayStr = today.getFullYear() + "-" + pad(today.getMonth() + 1) + "-" + pad(today.getDate());
+    var dateStr = (editState && editState.originalDate) ? editState.originalDate : todayStr;
     var slug = slugify(title);
-    var filePath = "content/posts/" + dateStr + "-" + slug + ".md";
-
-    var content = buildFrontmatter({
-      title: title,
-      date: dateStr,
-      type: currentType,
-      category: category,
-      subcategory: els.subcategory.value.trim(),
-      url: els.url.value.trim(),
-      emailFrom: els.emailFrom.value.trim(),
-      emailSubject: els.emailSubject.value.trim(),
-      emailBody: els.emailBody.value
-    });
+    var imageFiles = Array.prototype.slice.call((els.images && els.images.files) || []);
+    var savingLabel = editState ? "Saving…" : "Adding…";
 
     els.submitBtn.disabled = true;
-    els.submitBtn.textContent = "Adding…";
+    els.submitBtn.textContent = imageFiles.length ? "Uploading images…" : savingLabel;
     setStatus("", "");
 
-    var apiUrl = "https://api.github.com/repos/" + cfg.user + "/" + cfg.repo + "/contents/" + filePath;
-
-    fetch(apiUrl, {
-      method: "PUT",
-      headers: {
-        "Authorization": "Bearer " + cfg.token,
-        "Accept": "application/vnd.github+json",
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        message: "Add post: " + title,
-        content: utf8ToBase64(content),
-        branch: "main"
+    readImagesAsBase64(imageFiles)
+      .then(function (encoded) {
+        return uploadImages(encoded, dateStr, slug);
       })
-    })
-      .then(function (res) {
-        if (res.ok) return res.json();
-        return res.json()
-          .catch(function () { return {}; })
-          .then(function (err) {
-            throw new Error((err && err.message) || ("GitHub responded " + res.status));
+      .then(function (imagePaths) {
+        els.submitBtn.textContent = savingLabel;
+        var content = buildFrontmatter({
+          title: title,
+          date: dateStr,
+          type: currentType,
+          category: category,
+          subcategory: els.subcategory.value.trim(),
+          url: els.url.value.trim(),
+          note: els.note.value.trim(),
+          postBody: els.postBody.value,
+          emailFrom: els.emailFrom.value.trim(),
+          emailSubject: els.emailSubject.value.trim(),
+          emailBody: els.emailBody.value,
+          images: imagePaths
+        });
+        if (editState) {
+          return githubPut(editState.path, utf8ToBase64(content), "Update post: " + title, editState.sha);
+        }
+        var filePath = "content/posts/" + dateStr + "-" + slug + ".md";
+        return githubPut(filePath, utf8ToBase64(content), "Add post: " + title);
+      })
+      .then(function (result) {
+        if (editState) {
+          if (result && result.content && result.content.sha) editState.sha = result.content.sha;
+          var slugPart = editState.path.replace(/^content\/posts\//, "").replace(/\.md$/, "");
+          setStatus("ok", 'Saved. <a href="../posts/' + slugPart + '/">View post</a>');
+        } else {
+          setStatus("ok", "Added! It'll appear on the site in a minute or two once the build finishes.");
+          els.form.reset();
+          currentType = "tweet";
+          Array.prototype.forEach.call(els.typeGrid.children, function (c) {
+            c.classList.toggle("active", c.getAttribute("data-type") === "tweet");
           });
-      })
-      .then(function () {
-        setStatus("ok", "Added! It'll appear on the site in a minute or two once the build finishes.");
-        els.form.reset();
-        els.title.focus();
+          applyTypeVisibility();
+          els.title.focus();
+        }
         loadSuggestions();
       })
       .catch(function (err) {
@@ -341,7 +647,7 @@ button.submit:disabled{opacity:0.5}
       })
       .finally(function () {
         els.submitBtn.disabled = false;
-        els.submitBtn.textContent = "Add to Glob";
+        els.submitBtn.textContent = editState ? "Save changes" : "Add to Glob";
       });
   });
 
@@ -353,6 +659,10 @@ button.submit:disabled{opacity:0.5}
 
   loadCfg();
   loadSuggestions();
+  applyTypeVisibility();
+
+  var editParam = new URLSearchParams(window.location.search).get("edit");
+  if (editParam) enterEditMode(editParam);
 })();
 </script>
 </body>

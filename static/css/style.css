@@ -154,7 +154,19 @@ a { color: var(--accent); }
 
 .email-body { margin: 0; padding: 0; border: 0; font-style: normal; }
 
+.post-body img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 6px;
+  display: block;
+  margin: 1rem 0;
+}
+
 .source-link { font-size: 0.85rem; }
+
+.edit-link { font-size: 0.8rem; margin-top: 2rem; }
+.edit-link a { color: var(--muted); text-decoration: none; }
+.edit-link a:hover { color: var(--accent); }
 
 .category-list { list-style: none; padding: 0; }
 .category-list li { padding: 0.4rem 0; }

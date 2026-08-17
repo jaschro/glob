@@ -17,6 +17,13 @@
   </header>
 
   {{ $type := .Params.type }}
+
+  {{ if and .Content (ne $type "email") }}
+  <div class="post-body">
+    {{ .Content }}
+  </div>
+  {{ end }}
+
   {{ if eq $type "tweet" }}
     {{ partial "embed/tweet.html" . }}
   {{ else if eq $type "youtube" }}
@@ -29,16 +36,12 @@
     {{ partial "embed/email.html" . }}
   {{ end }}
 
-  {{ if and .Content (ne $type "email") }}
-  <div class="post-body">
-    {{ .Content }}
-  </div>
-  {{ end }}
-
   {{ with .Params.source_url }}
     {{ if ne $type "email" }}
     <p class="source-link"><a href="{{ . }}" target="_blank" rel="noopener">Original source ↗</a></p>
     {{ end }}
   {{ end }}
+
+  <p class="edit-link"><a href="{{ "add/" | relURL }}?edit={{ .File.LogicalName | urlquery }}">Edit this post ✎</a></p>
 </article>
 {{ end }}
