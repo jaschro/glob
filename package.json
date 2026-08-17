@@ -3,7 +3,7 @@
   "private": true,
   "description": "Tests for the browse page and capture form JS -- not part of the built site.",
   "scripts": {
-    "test": "node tests/browse.test.js && node tests/add.test.js && node tests/post-edit-link.test.js"
+    "test": "node tests/browse.test.js && node tests/add.test.js"
   },
   "devDependencies": {
     "jsdom": "^24.0.0"

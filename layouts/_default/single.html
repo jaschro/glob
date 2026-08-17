@@ -43,26 +43,7 @@
   {{ end }}
 
   <p class="edit-link">
-    <a href="{{ "add/" | relURL }}?edit={{ .File.LogicalName | urlquery }}" id="edit-post-link">Edit this post ✎</a>
+    <a href="{{ "add/" | relURL }}?edit={{ .File.LogicalName | urlquery }}">Edit this post ✎</a>
   </p>
-  <script>
-  // The edit link only makes sense once a GitHub PAT is saved in this browser
-  // (it's the same localStorage the Add to Glob page reads). Grey it out
-  // instead of sending you into a PAT prompt you didn't ask for.
-  (function () {
-    var link = document.getElementById("edit-post-link");
-    if (!link) return;
-    var ready = false;
-    try {
-      var cfg = JSON.parse(window.localStorage.getItem("glob-cfg") || "{}");
-      ready = !!(cfg && cfg.user && cfg.repo && cfg.token);
-    } catch (e) { /* localStorage unavailable -- leave the link disabled */ }
-    if (!ready) {
-      link.classList.add("disabled");
-      link.title = "Set up your GitHub PAT on the Add to Glob page first.";
-      link.addEventListener("click", function (e) { e.preventDefault(); });
-    }
-  })();
-  </script>
 </article>
 {{ end }}

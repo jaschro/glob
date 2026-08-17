@@ -56,6 +56,17 @@ body {
 
 .site-header nav a:hover { color: var(--accent); }
 
+.site-header nav a.nav-add {
+  color: var(--accent);
+  border: 1px solid var(--accent);
+  border-radius: 999px;
+  padding: 0.2rem 0.7rem;
+}
+
+.site-header nav a.nav-add:hover {
+  background: rgba(53, 82, 107, 0.08);
+}
+
 .wrap {
   max-width: var(--max-width);
   margin: 0 auto;
@@ -167,8 +178,6 @@ a { color: var(--accent); }
 .edit-link { font-size: 0.8rem; margin-top: 2rem; }
 .edit-link a { color: var(--muted); text-decoration: none; }
 .edit-link a:hover { color: var(--accent); }
-.edit-link a.disabled { color: var(--border); cursor: not-allowed; }
-.edit-link a.disabled:hover { color: var(--border); }
 
 .category-list { list-style: none; padding: 0; }
 .category-list li { padding: 0.4rem 0; }
