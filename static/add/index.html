@@ -46,21 +46,73 @@ button.submit:disabled{opacity:0.5}
 .status.ok{display:block;background:rgba(31,138,76,0.12);color:var(--ok)}
 .status.bad{display:block;background:rgba(192,57,43,0.12);color:var(--bad)}
 .status a{color:inherit;font-weight:600}
-.settings{
-  border:1px solid var(--border);border-radius:8px;padding:1rem;margin-bottom:1.25rem;
-  display:none;
-}
-.settings.open{display:block}
-.settings .field:last-child{margin-bottom:0}
+.screen{display:none}
+.screen.on{display:block}
 .settings-note{font-size:0.78rem;color:var(--muted);margin-top:0.5rem}
+.back-link{color:var(--muted);text-decoration:none;font-size:0.85rem;display:inline-block;margin-bottom:1rem}
 </style>
 </head>
 <body>
 
-<h1>Add to Glob <button class="gear" id="gear" title="Settings" type="button">&#9881;&#65039;</button></h1>
-<div><a href="../posts/">&larr; back to Glob</a></div>
+<div class="screen" id="screen-main">
+  <h1>Add to Glob <button class="gear" id="gear" title="Settings" type="button">&#9881;&#65039;</button></h1>
+  <div><a href="../posts/">&larr; back to Glob</a></div>
 
-<div class="settings" id="settings">
+  <form id="add-form">
+    <div class="type-grid" id="type-grid">
+      <div class="type-btn active" data-type="tweet">Tweet / X</div>
+      <div class="type-btn" data-type="youtube">YouTube</div>
+      <div class="type-btn" data-type="music">Music</div>
+      <div class="type-btn" data-type="powerbi">PowerBI</div>
+      <div class="type-btn" data-type="email">Email</div>
+    </div>
+
+    <div class="field">
+      <label for="f-title">Title</label>
+      <input id="f-title" type="text" required placeholder="What is this?">
+    </div>
+
+    <div class="field">
+      <label for="f-category">Category</label>
+      <input id="f-category" type="text" list="category-list" required placeholder="e.g. Technology">
+      <datalist id="category-list"></datalist>
+    </div>
+
+    <div class="field">
+      <label for="f-subcategory">Subcategory (optional)</label>
+      <input id="f-subcategory" type="text" list="subcategory-list" placeholder="e.g. AI">
+      <datalist id="subcategory-list"></datalist>
+    </div>
+
+    <div class="field" id="url-field">
+      <label for="f-url">Source URL</label>
+      <input id="f-url" type="url" placeholder="https://…">
+    </div>
+
+    <div id="email-fields" class="hidden">
+      <div class="field">
+        <label for="f-email-from">From</label>
+        <input id="f-email-from" type="text" placeholder="sender@example.com">
+      </div>
+      <div class="field">
+        <label for="f-email-subject">Subject</label>
+        <input id="f-email-subject" type="text" placeholder="Subject line">
+      </div>
+      <div class="field">
+        <label for="f-email-body">Body</label>
+        <textarea id="f-email-body" placeholder="Quoted email text…"></textarea>
+      </div>
+    </div>
+
+    <button type="submit" class="submit" id="submit-btn">Add to Glob</button>
+    <div class="status" id="status"></div>
+  </form>
+</div>
+
+<div class="screen" id="screen-settings">
+  <h1>Settings</h1>
+  <a href="#" class="back-link" id="settings-done">&larr; back to Add to Glob</a>
+
   <div class="field">
     <label for="cfg-user">GitHub username</label>
     <input id="cfg-user" type="text" autocapitalize="none" spellcheck="false" placeholder="jaschro">
@@ -76,56 +128,6 @@ button.submit:disabled{opacity:0.5}
   <p class="settings-note">Stored only in this browser's local storage. Never sent anywhere except directly to api.github.com.</p>
 </div>
 
-<form id="add-form">
-  <div class="type-grid" id="type-grid">
-    <div class="type-btn active" data-type="tweet">Tweet / X</div>
-    <div class="type-btn" data-type="youtube">YouTube</div>
-    <div class="type-btn" data-type="music">Music</div>
-    <div class="type-btn" data-type="powerbi">PowerBI</div>
-    <div class="type-btn" data-type="email">Email</div>
-  </div>
-
-  <div class="field">
-    <label for="f-title">Title</label>
-    <input id="f-title" type="text" required placeholder="What is this?">
-  </div>
-
-  <div class="field">
-    <label for="f-category">Category</label>
-    <input id="f-category" type="text" list="category-list" required placeholder="e.g. Technology">
-    <datalist id="category-list"></datalist>
-  </div>
-
-  <div class="field">
-    <label for="f-subcategory">Subcategory (optional)</label>
-    <input id="f-subcategory" type="text" list="subcategory-list" placeholder="e.g. AI">
-    <datalist id="subcategory-list"></datalist>
-  </div>
-
-  <div class="field" id="url-field">
-    <label for="f-url">Source URL</label>
-    <input id="f-url" type="url" placeholder="https://…">
-  </div>
-
-  <div id="email-fields" class="hidden">
-    <div class="field">
-      <label for="f-email-from">From</label>
-      <input id="f-email-from" type="text" placeholder="sender@example.com">
-    </div>
-    <div class="field">
-      <label for="f-email-subject">Subject</label>
-      <input id="f-email-subject" type="text" placeholder="Subject line">
-    </div>
-    <div class="field">
-      <label for="f-email-body">Body</label>
-      <textarea id="f-email-body" placeholder="Quoted email text…"></textarea>
-    </div>
-  </div>
-
-  <button type="submit" class="submit" id="submit-btn">Add to Glob</button>
-  <div class="status" id="status"></div>
-</form>
-
 <script>
 (function () {
   "use strict";
@@ -135,7 +137,9 @@ button.submit:disabled{opacity:0.5}
 
   var els = {
     gear: document.getElementById("gear"),
-    settings: document.getElementById("settings"),
+    screenMain: document.getElementById("screen-main"),
+    screenSettings: document.getElementById("screen-settings"),
+    settingsDone: document.getElementById("settings-done"),
     cfgUser: document.getElementById("cfg-user"),
     cfgRepo: document.getElementById("cfg-repo"),
     cfgToken: document.getElementById("cfg-token"),
@@ -156,6 +160,11 @@ button.submit:disabled{opacity:0.5}
     status: document.getElementById("status")
   };
 
+  function showScreen(name) {
+    els.screenMain.classList.toggle("on", name === "main");
+    els.screenSettings.classList.toggle("on", name === "settings");
+  }
+
   function loadCfg() {
     try {
       Object.assign(cfg, JSON.parse(localStorage.getItem("glob-cfg") || "{}"));
@@ -163,9 +172,7 @@ button.submit:disabled{opacity:0.5}
     els.cfgUser.value = cfg.user || "";
     els.cfgRepo.value = cfg.repo || "";
     els.cfgToken.value = cfg.token || "";
-    if (!cfg.user || !cfg.repo || !cfg.token) {
-      els.settings.classList.add("open");
-    }
+    showScreen((!cfg.user || !cfg.repo || !cfg.token) ? "settings" : "main");
   }
 
   function saveCfg() {
@@ -176,7 +183,11 @@ button.submit:disabled{opacity:0.5}
   }
 
   els.gear.addEventListener("click", function () {
-    els.settings.classList.toggle("open");
+    showScreen("settings");
+  });
+  els.settingsDone.addEventListener("click", function (e) {
+    e.preventDefault();
+    showScreen("main");
   });
   [els.cfgUser, els.cfgRepo, els.cfgToken].forEach(function (el) {
     el.addEventListener("input", saveCfg);
@@ -264,7 +275,7 @@ button.submit:disabled{opacity:0.5}
     saveCfg();
 
     if (!cfg.user || !cfg.repo || !cfg.token) {
-      els.settings.classList.add("open");
+      showScreen("settings");
       setStatus("bad", "Fill in your GitHub username, repo, and token in Settings first.");
       return;
     }

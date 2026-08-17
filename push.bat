@@ -1,52 +1,71 @@
 @echo off
-setlocal
-
-rem Run this from inside your Glob folder (double-click it there).
+setlocal enabledelayedexpansion
 cd /d "%~dp0"
 
-echo Glob setup
-echo ==========
+where node >nul 2>nul
+if not %errorlevel%==0 goto :skip_js_tests
+
+if exist node_modules goto :run_tests
+echo Installing test dependencies, first run only...
+call npm install --silent
+
+:run_tests
+echo Running tests...
+call npm test
+if errorlevel 1 goto :tests_failed
+echo Tests passed.
+goto :check_hugo
+
+:tests_failed
 echo.
-
-if exist ".git" (
-    echo Removing existing .git folder from the earlier failed attempt...
-    rd /s /q ".git"
-)
-
-git init
-if errorlevel 1 goto :error
-
-git add .
-git commit -m "Initial glob scaffold"
-if errorlevel 1 goto :error
-
-git branch -M main
-
-echo.
-echo Create an empty repo on github.com first if you haven't yet
-echo   - suggested name: glob
-echo   - public, no README/license/gitignore (this folder already has files)
-echo.
-set /p REPO_URL="Paste the repo URL (e.g. https://github.com/USERNAME/glob.git): "
-
-git remote add origin "%REPO_URL%"
-if errorlevel 1 goto :error
-
-git push -u origin main
-if errorlevel 1 goto :error
-
-echo.
-echo Pushed. Now on GitHub: Settings -^> Pages -^> set Source to "GitHub Actions".
-echo Check the Actions tab to watch the first build run.
+echo Tests failed -- not pushing. Fix the issue above and run this again.
 goto :end
 
-:error
+:skip_js_tests
+echo Node.js not found, skipping JS tests. Install from nodejs.org if you want this check to run.
+
+:check_hugo
+where hugo >nul 2>nul
+if not %errorlevel%==0 goto :skip_hugo_build
+
+echo Building site to check for errors...
+hugo --minify >nul
+if errorlevel 1 goto :build_failed
+echo Build OK.
+goto :do_push
+
+:build_failed
 echo.
-echo Something went wrong -- see the error above.
-echo (If git complains about missing user.name/user.email, run:
-echo   git config --global user.name "Your Name"
-echo   git config --global user.email "you@example.com"
-echo  and then re-run this script.)
+echo Site build failed -- not pushing. Run hugo here to see the full error.
+goto :end
+
+:skip_hugo_build
+echo Hugo not found, skipping build check. Install from gohugo.io if you want this check to run.
+
+:do_push
+git add -A
+
+set "MSG="
+set /p MSG="Commit message, press Enter for 'Update Glob': "
+if "%MSG%"=="" set "MSG=Update Glob"
+
+git commit -m "%MSG%"
+if errorlevel 1 (
+    echo.
+    echo Nothing to commit, or the commit failed -- see above.
+    goto :end
+)
+
+git push
+if errorlevel 1 (
+    echo.
+    echo Push failed -- see the error above.
+    goto :end
+)
+
+echo.
+echo Pushed. Check the Actions tab on GitHub to watch the build,
+echo then reload the site in a minute or two.
 
 :end
 echo.
