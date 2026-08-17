@@ -31,6 +31,14 @@ input,select,textarea{
 }
 textarea{min-height:6rem;resize:vertical}
 textarea.tall{min-height:11rem}
+.fmt-bar{display:flex;flex-wrap:wrap;gap:0.3rem;margin-bottom:0.35rem}
+.fmt-bar button{
+  padding:0.25rem 0.5rem;border:1px solid var(--border);border-radius:6px;
+  background:var(--card);color:var(--fg);font-size:0.78rem;line-height:1.4;
+  cursor:pointer;min-width:2rem;
+}
+.fmt-bar button:hover{border-color:var(--accent);color:var(--accent)}
+.fmt-hint{font-size:0.75rem;color:var(--muted);margin:0.35rem 0 0}
 input[type="file"]{padding:0.5rem 0.4rem;background:transparent;border:1px dashed var(--border)}
 .type-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:0.5rem;margin-bottom:1rem}
 .type-btn{
@@ -107,6 +115,14 @@ button.delete-btn:disabled{opacity:0.5}
 
     <div class="field" id="note-field">
       <label for="f-note">Leading text (optional)</label>
+      <div class="fmt-bar" data-for="f-note">
+        <button type="button" data-fmt="bold" title="Bold"><b>B</b></button>
+        <button type="button" data-fmt="italic" title="Italic"><i>I</i></button>
+        <button type="button" data-fmt="underline" title="Underline"><u>U</u></button>
+        <button type="button" data-fmt="bullet" title="Bulleted list">&bull; List</button>
+        <button type="button" data-fmt="number" title="Numbered list">1. List</button>
+        <button type="button" data-fmt="indent" title="Indent">&rarr;</button>
+      </div>
       <textarea id="f-note" placeholder="A note to show above the embed…"></textarea>
     </div>
 
@@ -121,13 +137,30 @@ button.delete-btn:disabled{opacity:0.5}
       </div>
       <div class="field">
         <label for="f-email-body">Body</label>
+        <div class="fmt-bar" data-for="f-email-body">
+          <button type="button" data-fmt="bold" title="Bold"><b>B</b></button>
+          <button type="button" data-fmt="italic" title="Italic"><i>I</i></button>
+          <button type="button" data-fmt="underline" title="Underline"><u>U</u></button>
+          <button type="button" data-fmt="bullet" title="Bulleted list">&bull; List</button>
+          <button type="button" data-fmt="number" title="Numbered list">1. List</button>
+          <button type="button" data-fmt="indent" title="Indent">&rarr;</button>
+        </div>
         <textarea id="f-email-body" placeholder="Quoted email text…"></textarea>
       </div>
     </div>
 
     <div class="field hidden" id="post-body-field">
       <label for="f-post-body">Body</label>
+      <div class="fmt-bar" data-for="f-post-body">
+        <button type="button" data-fmt="bold" title="Bold"><b>B</b></button>
+        <button type="button" data-fmt="italic" title="Italic"><i>I</i></button>
+        <button type="button" data-fmt="underline" title="Underline"><u>U</u></button>
+        <button type="button" data-fmt="bullet" title="Bulleted list">&bull; List</button>
+        <button type="button" data-fmt="number" title="Numbered list">1. List</button>
+        <button type="button" data-fmt="indent" title="Indent">&rarr;</button>
+      </div>
       <textarea id="f-post-body" class="tall" placeholder="Write the post…"></textarea>
+      <p class="fmt-hint">Line breaks are kept as you type them. Select text and use the buttons above, or type Markdown directly.</p>
     </div>
 
     <div class="field" id="images-field">
@@ -330,6 +363,76 @@ button.delete-btn:disabled{opacity:0.5}
     var btn = e.target.closest(".type-btn");
     if (!btn) return;
     setActiveType(btn.getAttribute("data-type"));
+  });
+
+  // --- formatting toolbar -------------------------------------------------
+  // The body fields are plain textareas that get rendered as Markdown. These
+  // buttons insert the right Markdown so you don't have to know the syntax.
+
+  // Wraps the selection (e.g. **bold**), or inserts the markers around a
+  // placeholder word when nothing is selected, leaving it selected so typing
+  // replaces it.
+  function wrapSelection(ta, before, after) {
+    var s = ta.selectionStart, e = ta.selectionEnd, v = ta.value;
+    var sel = v.slice(s, e) || "text";
+    ta.value = v.slice(0, s) + before + sel + after + v.slice(e);
+    ta.focus();
+    ta.setSelectionRange(s + before.length, s + before.length + sel.length);
+  }
+
+  // Applies a per-line transform across every line the selection touches
+  // (or just the current line when nothing is selected).
+  function transformLines(ta, fn) {
+    var s = ta.selectionStart, e = ta.selectionEnd, v = ta.value;
+    var start = v.lastIndexOf("\n", s - 1) + 1;
+    var end = v.indexOf("\n", e);
+    if (end === -1) end = v.length;
+    var out = v.slice(start, end).split("\n").map(fn).join("\n");
+    ta.value = v.slice(0, start) + out + v.slice(end);
+    ta.focus();
+    ta.setSelectionRange(start, start + out.length);
+  }
+
+  var FORMATTERS = {
+    bold: function (ta) { wrapSelection(ta, "**", "**"); },
+    italic: function (ta) { wrapSelection(ta, "*", "*"); },
+    // Markdown has no underline, but raw HTML is enabled for the site's
+    // embeds, so <u> works and survives the round trip.
+    underline: function (ta) { wrapSelection(ta, "<u>", "</u>"); },
+    bullet: function (ta) {
+      transformLines(ta, function (l) {
+        if (!l.trim()) return l;
+        return /^\s*[-*]\s/.test(l) ? l : "- " + l;
+      });
+    },
+    number: function (ta) {
+      var n = 0;
+      transformLines(ta, function (l) {
+        if (!l.trim()) return l;
+        n++;
+        return /^\s*\d+\.\s/.test(l) ? l : n + ". " + l;
+      });
+    },
+    // Two spaces nests a list item. For ordinary text that would do nothing
+    // visible (and four spaces would silently become a code block), so plain
+    // lines get a blockquote instead -- which is a safe, visible indent.
+    indent: function (ta) {
+      transformLines(ta, function (l) {
+        if (!l.trim()) return l;
+        return /^\s*([-*]|\d+\.)\s/.test(l) ? "  " + l : "> " + l;
+      });
+    }
+  };
+
+  Array.prototype.forEach.call(document.querySelectorAll(".fmt-bar"), function (bar) {
+    var ta = document.getElementById(bar.getAttribute("data-for"));
+    if (!ta) return;
+    bar.addEventListener("click", function (e) {
+      var btn = e.target.closest("button[data-fmt]");
+      if (!btn) return;
+      var fn = FORMATTERS[btn.getAttribute("data-fmt")];
+      if (fn) fn(ta);
+    });
   });
 
   // Guesses the right type from a pasted URL -- this is what's supposed to

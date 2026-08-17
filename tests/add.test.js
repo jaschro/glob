@@ -136,6 +136,99 @@ async function main() {
     assert.strictEqual(doc.getElementById("f-url").value, "https://www.youtube.com/watch?v=pATX-lV0VFk");
   });
 
+  // --- formatting toolbar ---
+  function fmtSetup(doc, window, text, selStart, selEnd) {
+    doc.querySelector('[data-type="post"]').dispatchEvent(new window.Event("click", { bubbles: true }));
+    const ta = doc.getElementById("f-post-body");
+    ta.value = text;
+    ta.setSelectionRange(selStart, selEnd === undefined ? selStart : selEnd);
+    return ta;
+  }
+  function clickFmt(doc, window, fmt) {
+    doc.querySelector('.fmt-bar[data-for="f-post-body"] [data-fmt="' + fmt + '"]')
+      .dispatchEvent(new window.MouseEvent("click", { bubbles: true }));
+  }
+
+  await check("Bold button wraps the selected text in markdown bold", async () => {
+    const { window } = await run(async () => ({ ok: true, json: async () => ({}) }), { user: "jaschro", repo: "glob", token: "tkn" });
+    const doc = window.document;
+    const ta = fmtSetup(doc, window, "make this bold", 10, 14);
+    clickFmt(doc, window, "bold");
+    assert.strictEqual(ta.value, "make this **bold**");
+  });
+
+  await check("Italic and Underline wrap correctly (underline uses raw HTML)", async () => {
+    const { window } = await run(async () => ({ ok: true, json: async () => ({}) }), { user: "jaschro", repo: "glob", token: "tkn" });
+    const doc = window.document;
+    let ta = fmtSetup(doc, window, "hello world", 6, 11);
+    clickFmt(doc, window, "italic");
+    assert.strictEqual(ta.value, "hello *world*");
+    ta.value = "hello world";
+    ta.setSelectionRange(6, 11);
+    clickFmt(doc, window, "underline");
+    assert.strictEqual(ta.value, "hello <u>world</u>");
+  });
+
+  await check("Bullet button turns each selected line into a list item", async () => {
+    const { window } = await run(async () => ({ ok: true, json: async () => ({}) }), { user: "jaschro", repo: "glob", token: "tkn" });
+    const doc = window.document;
+    const text = "Ice cream\nPizza\nProrasso";
+    const ta = fmtSetup(doc, window, text, 0, text.length);
+    clickFmt(doc, window, "bullet");
+    assert.strictEqual(ta.value, "- Ice cream\n- Pizza\n- Prorasso");
+  });
+
+  await check("Bullet button doesn't double-prefix lines that are already bullets", async () => {
+    const { window } = await run(async () => ({ ok: true, json: async () => ({}) }), { user: "jaschro", repo: "glob", token: "tkn" });
+    const doc = window.document;
+    const text = "- Already\nPlain";
+    const ta = fmtSetup(doc, window, text, 0, text.length);
+    clickFmt(doc, window, "bullet");
+    assert.strictEqual(ta.value, "- Already\n- Plain");
+  });
+
+  await check("Numbered list numbers the selected lines sequentially", async () => {
+    const { window } = await run(async () => ({ ok: true, json: async () => ({}) }), { user: "jaschro", repo: "glob", token: "tkn" });
+    const doc = window.document;
+    const text = "First\nSecond\nThird";
+    const ta = fmtSetup(doc, window, text, 0, text.length);
+    clickFmt(doc, window, "number");
+    assert.strictEqual(ta.value, "1. First\n2. Second\n3. Third");
+  });
+
+  await check("Indent nests a list item, but never creates a 4-space code block from plain text", async () => {
+    const { window } = await run(async () => ({ ok: true, json: async () => ({}) }), { user: "jaschro", repo: "glob", token: "tkn" });
+    const doc = window.document;
+    // list item -> nested with two spaces
+    let ta = fmtSetup(doc, window, "- a list item", 0, 13);
+    clickFmt(doc, window, "indent");
+    assert.strictEqual(ta.value, "  - a list item");
+    // plain text -> blockquote, not leading spaces (4 spaces would become code)
+    ta.value = "just some text";
+    ta.setSelectionRange(0, 14);
+    clickFmt(doc, window, "indent");
+    assert.strictEqual(ta.value, "> just some text");
+    // pressing it twice on plain text still must not produce leading spaces
+    ta.setSelectionRange(0, ta.value.length);
+    clickFmt(doc, window, "indent");
+    assert.ok(!/^ {4}/.test(ta.value), "must never start a line with 4 spaces");
+  });
+
+  await check("formatting applied in the body survives into the saved post content", async () => {
+    const { window, getRequest } = await run(async () => ({ ok: true, json: async () => ({}) }), { user: "jaschro", repo: "glob", token: "tkn" });
+    const doc = window.document;
+    const text = "Ice cream\nPizza";
+    const ta = fmtSetup(doc, window, text, 0, text.length);
+    clickFmt(doc, window, "bullet");
+    setVal(doc, "f-title", "Five things I like");
+    setVal(doc, "f-category", "General");
+    submit(doc);
+    await new Promise((r) => setTimeout(r, 30));
+    const body = JSON.parse(getRequest().opts.body);
+    const decoded = Buffer.from(body.content, "base64").toString("utf8");
+    assert.ok(decoded.includes("- Ice cream\n- Pizza"));
+  });
+
   await check("tweet type (default) shows URL and note fields, hides body field", async () => {
     const { window } = await run(async () => ({ ok: true, json: async () => ({}) }), { user: "jaschro", repo: "glob", token: "tkn" });
     const doc = window.document;

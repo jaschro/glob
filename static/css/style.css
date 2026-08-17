@@ -170,6 +170,20 @@ a { color: var(--accent); }
 
 .email-body { margin: 0; padding: 0; border: 0; font-style: normal; }
 
+.post-body ul, .post-body ol {
+  padding-left: 1.4rem;
+  margin: 0.75rem 0;
+}
+
+.post-body li { margin: 0.2rem 0; }
+
+.post-body blockquote {
+  margin: 0.75rem 0;
+  padding-left: 1rem;
+  border-left: 2px solid var(--border);
+  color: inherit;
+}
+
 .post-body img {
   max-width: 100%;
   height: auto;

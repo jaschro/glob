@@ -25,6 +25,11 @@ markup:
     renderer:
       # allow raw HTML (iframes, embed snippets) inside markdown content
       unsafe: true
+      # Treat a single newline as a real line break. Without this, Markdown
+      # collapses typed line breaks into one flowing paragraph -- so a list
+      # typed one-per-line in the capture form came out as a flat run-on
+      # sentence. Posts here are typed the way they're meant to read.
+      hardWraps: true
 
 pagination:
   pagerSize: 20
