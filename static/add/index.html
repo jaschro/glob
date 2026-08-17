@@ -169,6 +169,9 @@ button.delete-btn:disabled{opacity:0.5}
   var editState = null;
   // Holds an edit target requested before Settings had credentials saved.
   var pendingEditFile = null;
+  // True from the moment an ?edit= link is opened, whether or not the post
+  // has actually finished loading -- see defaultSubmitLabel() below.
+  var isEditContext = false;
 
   var els = {
     gear: document.getElementById("gear"),
@@ -513,10 +516,20 @@ button.delete-btn:disabled{opacity:0.5}
     }
   }
 
+  // True for the entire time we're on an edit journey (from the moment the
+  // ?edit= link is opened), independent of whether the post has actually
+  // finished loading yet. Used so the page never calls itself "Add to Glob"
+  // -- in wording or in the browser tab title -- while you're editing.
+  function defaultSubmitLabel() {
+    return isEditContext ? "Save" : "Add to Glob";
+  }
+
   // Called when the page is opened with ?edit=<filename> from a post page's
   // Edit link. Needs credentials first -- if they're missing, remembers the
   // request and resumes once Settings is saved.
   function enterEditMode(filename) {
+    isEditContext = true;
+    document.title = "Edit post – Glob";
     if (!cfg.user || !cfg.repo || !cfg.token) {
       pendingEditFile = filename;
       showScreen("settings");
@@ -528,9 +541,17 @@ button.delete-btn:disabled{opacity:0.5}
 
   function loadPostForEdit(filename) {
     var path = "content/posts/" + filename;
-    setStatus("", "");
+    editState = null;
+
+    // Make it unmistakable that something is happening -- before this fix,
+    // the form looked identical to a blank "Add" screen while loading (or
+    // after a silent failure), which read as "the Edit button does nothing."
+    if (els.formHeading) els.formHeading.textContent = "Loading post…";
     els.submitBtn.disabled = true;
     els.submitBtn.textContent = "Loading…";
+    els.dangerZone.classList.add("hidden");
+    setStatus("", "");
+    showScreen("main");
 
     githubGet(path)
       .then(function (data) {
@@ -539,17 +560,22 @@ button.delete-btn:disabled{opacity:0.5}
         editState = { path: path, sha: data.sha, originalDate: parsed.fields.date || "" };
         fillFormFromParsed(parsed);
         if (els.formHeading) els.formHeading.textContent = "Edit post";
-        els.submitBtn.textContent = "Save changes";
+        document.title = "Edit post – Glob";
+        els.submitBtn.textContent = defaultSubmitLabel();
+        els.submitBtn.disabled = false;
         els.dangerZone.classList.remove("hidden");
-        showScreen("main");
       })
       .catch(function (err) {
-        showScreen("main");
-        setStatus("bad", "Couldn't load that post: " + escapeHtml(err.message));
-      })
-      .finally(function () {
-        els.submitBtn.disabled = false;
-        if (els.submitBtn.textContent === "Loading…") els.submitBtn.textContent = "Add to Glob";
+        // eslint-disable-next-line no-console
+        console.error("Glob: couldn't load post \"" + path + "\" for editing:", err);
+        if (els.formHeading) els.formHeading.textContent = "Couldn't load that post";
+        document.title = "Couldn't load post – Glob";
+        els.submitBtn.textContent = defaultSubmitLabel();
+        // Stays disabled on purpose: there's no post loaded to save, so the
+        // button must not silently fall through to "create a new post."
+        els.submitBtn.disabled = true;
+        setStatus("bad", "Couldn't load that post to edit it: " + escapeHtml(err.message) +
+          ". Reload this page to try again, or check that your PAT (in Settings) still has access to this repo.");
       });
   }
 
@@ -581,6 +607,13 @@ button.delete-btn:disabled{opacity:0.5}
     if (!cfg.user || !cfg.repo || !cfg.token) {
       showScreen("settings");
       setStatus("bad", "Fill in your GitHub username, repo, and token in Settings first.");
+      return;
+    }
+    // Guards the case a failed edit-load left the form looking editable but
+    // with no post actually loaded -- without this, submitting would fall
+    // through to "create a new post" instead of failing safely.
+    if (isEditContext && !editState) {
+      setStatus("bad", "The original post hasn't loaded, so there's nothing to save. Reload the page and try again.");
       return;
     }
     var title = els.title.value.trim();
@@ -653,7 +686,7 @@ button.delete-btn:disabled{opacity:0.5}
       })
       .finally(function () {
         els.submitBtn.disabled = false;
-        els.submitBtn.textContent = editState ? "Save changes" : "Add to Glob";
+        els.submitBtn.textContent = defaultSubmitLabel();
       });
   });
 

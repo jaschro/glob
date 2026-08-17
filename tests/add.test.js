@@ -279,8 +279,9 @@ async function main() {
     assert.strictEqual(doc.getElementById("f-email-from").value, "billing@utilityco.example");
     assert.ok(doc.getElementById("f-email-body").value.includes("duplicate charge has been reversed"));
     assert.strictEqual(doc.getElementById("email-fields").classList.contains("hidden"), false);
-    assert.strictEqual(doc.getElementById("submit-btn").textContent, "Save changes");
+    assert.strictEqual(doc.getElementById("submit-btn").textContent, "Save");
     assert.strictEqual(doc.getElementById("danger-zone").classList.contains("hidden"), false);
+    assert.ok(doc.title.toLowerCase().includes("edit"), 'tab title should say "Edit post", not "Add to Glob"');
   });
 
   await check("saving an edited post PUTs to the original path with the original sha", async () => {
@@ -327,6 +328,47 @@ async function main() {
     await new Promise((r) => setTimeout(r, 30));
     assert.strictEqual(doc.getElementById("screen-main").classList.contains("on"), true);
     assert.strictEqual(doc.getElementById("f-title").value, "Utility note");
+  });
+
+  await check("a failed post load shows a clear, unmissable error -- not a silent blank Add screen", async () => {
+    const failingFetch = (url, opts) => {
+      if (!opts || !opts.method) {
+        return { ok: false, status: 401, json: async () => ({ message: "Bad credentials" }) };
+      }
+      return { ok: true, json: async () => ({}) };
+    };
+    const { window } = await run(failingFetch, { user: "jaschro", repo: "glob", token: "bad" }, EDIT_URL);
+    const doc = window.document;
+    assert.ok(doc.getElementById("form-heading").textContent.toLowerCase().includes("couldn't load"));
+    assert.ok(doc.getElementById("status").textContent.includes("Bad credentials"));
+    assert.strictEqual(doc.getElementById("danger-zone").classList.contains("hidden"), true);
+    // Stays disabled and still says "Save", never "Add to Glob" -- seeing the
+    // add-flow label after clicking Edit is exactly the confusing state we're
+    // fixing, and a re-enabled button here would let a failed load silently
+    // create a brand-new post instead of failing safely.
+    assert.strictEqual(doc.getElementById("submit-btn").disabled, true);
+    assert.strictEqual(doc.getElementById("submit-btn").textContent, "Save");
+    assert.ok(!doc.title.includes("Add to Glob"), 'tab title should not say "Add to Glob" while editing');
+  });
+
+  await check("submitting is blocked (not silently creating a new post) if the edit target never loaded", async () => {
+    const failingFetch = (url, opts) => {
+      if (!opts || !opts.method) {
+        return { ok: false, status: 401, json: async () => ({ message: "Bad credentials" }) };
+      }
+      return { ok: true, json: async () => ({}) };
+    };
+    const { window, getRequests } = await run(failingFetch, { user: "jaschro", repo: "glob", token: "bad" }, EDIT_URL);
+    const doc = window.document;
+    // Force a submit even though the button is disabled, to prove the JS-level
+    // guard (not just the disabled attribute) is what's actually stopping this.
+    setVal(doc, "f-title", "Should not be created");
+    setVal(doc, "f-category", "Test");
+    submit(doc);
+    await new Promise((r) => setTimeout(r, 30));
+    const reqs = getRequests();
+    assert.strictEqual(reqs.length, 1, "only the original failed GET should have happened -- no PUT");
+    assert.ok(doc.getElementById("status").textContent.includes("hasn't loaded"));
   });
 
   await check("unparseable error body still shows a sane fallback message", async () => {
