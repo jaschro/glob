@@ -1,0 +1,40 @@
+{{- /*
+  Turns a pasted link into the right embed automatically, so there's no
+  "what kind of post is this?" step. Applies only to BARE links (where the
+  visible text is the URL itself) -- a labelled link like [click](url)
+  stays an ordinary link, which is the escape hatch when you want one.
+  Anything unrecognised also stays an ordinary link.
+*/ -}}
+{{- $url := trim .Destination " " -}}
+{{- $bare := eq (trim .Text " ") $url -}}
+{{- $page := .Page -}}
+
+{{- if and $bare (findRE "(youtube\\.com/(watch|shorts)|youtu\\.be/)" $url) -}}
+  {{- $id := "" -}}
+  {{- if in $url "youtu.be/" -}}
+    {{- $id = index (split (index (split $url "youtu.be/") 1) "?") 0 -}}
+  {{- else if in $url "/shorts/" -}}
+    {{- $id = index (split (index (split $url "/shorts/") 1) "?") 0 -}}
+  {{- else if in $url "v=" -}}
+    {{- $id = index (split (index (split $url "v=") 1) "&") 0 -}}
+  {{- end -}}
+  <div class="embed embed-video"><iframe src="https://www.youtube-nocookie.com/embed/{{ $id }}" title="{{ $page.Title }}" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen loading="lazy"></iframe></div>
+
+{{- else if and $bare (findRE "(open\\.spotify\\.com|soundcloud\\.com/|bandcamp\\.com)" $url) -}}
+  {{- $embed := $url -}}
+  {{- if in $url "open.spotify.com/" -}}
+    {{- $embed = replace $url "open.spotify.com/" "open.spotify.com/embed/" -}}
+  {{- else if in $url "soundcloud.com/" -}}
+    {{- $embed = printf "https://w.soundcloud.com/player/?url=%s&auto_play=false" ($url | urlize) -}}
+  {{- end -}}
+  <div class="embed embed-music"><iframe src="{{ $embed }}" title="{{ $page.Title }}" loading="lazy" allow="encrypted-media"></iframe></div>
+
+{{- else if and $bare (findRE "(twitter\\.com|x\\.com)/[^/]+/status" $url) -}}
+  <div class="embed embed-tweet"><blockquote class="twitter-tweet"><a href="{{ $url }}"></a></blockquote><script async src="https://platform.twitter.com/widgets.js" charset="utf-8"></script></div>
+
+{{- else if and $bare (findRE "(app\\.powerbi\\.com|powerbi\\.com/view)" $url) -}}
+  <div class="embed embed-powerbi"><iframe src="{{ $url }}" title="{{ $page.Title }}" allowfullscreen loading="lazy"></iframe></div>
+
+{{- else -}}
+  <a href="{{ .Destination | safeURL }}"{{ with .Title }} title="{{ . }}"{{ end }}{{ if strings.HasPrefix $url "http" }} target="_blank" rel="noopener"{{ end }}>{{ .Text | safeHTML }}</a>
+{{- end -}}

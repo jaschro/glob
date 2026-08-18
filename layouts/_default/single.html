@@ -17,26 +17,40 @@
   </header>
 
   {{ $type := .Params.type }}
+  {{ $srcURL := .Params.source_url }}
 
   {{ if and .Content (ne $type "email") }}
+    {{/* Links pasted into the body become embeds via the render-link hook,
+         but Markdown wraps each one in its own <p>. A <div> inside a <p> is
+         invalid and browsers silently break the paragraph, so unwrap any
+         paragraph whose entire contents is an embed. */}}
+    {{ $body := replaceRE `<p>\s*(<div class="embed[\s\S]*?</div>)\s*</p>` "$1" .Content }}
   <div class="post-body">
-    {{ .Content }}
+    {{ $body | safeHTML }}
   </div>
   {{ end }}
 
-  {{ if eq $type "tweet" }}
-    {{ partial "embed/tweet.html" . }}
-  {{ else if eq $type "youtube" }}
-    {{ partial "embed/youtube.html" . }}
-  {{ else if eq $type "music" }}
-    {{ partial "embed/music.html" . }}
-  {{ else if eq $type "powerbi" }}
-    {{ partial "embed/powerbi.html" . }}
-  {{ else if eq $type "email" }}
+  {{/* The Source URL gets its own embed at the top level -- unless that same
+       link already appears in the body, in which case it's already embedded
+       there and repeating it would show the video twice. */}}
+  {{ $srcAlreadyInBody := and $srcURL (in .RawContent $srcURL) }}
+  {{ if not $srcAlreadyInBody }}
+    {{ if eq $type "tweet" }}
+      {{ partial "embed/tweet.html" . }}
+    {{ else if eq $type "youtube" }}
+      {{ partial "embed/youtube.html" . }}
+    {{ else if eq $type "music" }}
+      {{ partial "embed/music.html" . }}
+    {{ else if eq $type "powerbi" }}
+      {{ partial "embed/powerbi.html" . }}
+    {{ end }}
+  {{ end }}
+
+  {{ if eq $type "email" }}
     {{ partial "embed/email.html" . }}
   {{ end }}
 
-  {{ with .Params.source_url }}
+  {{ with $srcURL }}
     {{ if ne $type "email" }}
     <p class="source-link"><a href="{{ . }}" target="_blank" rel="noopener">Original source ↗</a></p>
     {{ end }}

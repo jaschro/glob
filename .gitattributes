@@ -1,0 +1,9 @@
+# Posts written from the browser Add/Edit page are created through GitHub's
+# API with Unix (LF) line endings, while editing or saving them on Windows
+# can rewrite them with CRLF. Without this, every push carried phantom
+# "changes" to posts nobody had actually edited, hiding the real ones.
+# Normalise everything to LF in the repository.
+* text=auto eol=lf
+
+# Batch files are the exception -- Windows needs CRLF for these to run.
+*.bat text eol=crlf

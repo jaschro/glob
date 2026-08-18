@@ -77,75 +77,81 @@ async function main() {
     assert.deepStrictEqual(cats.sort(), ["Music", "Technology"]);
   });
 
-  await check("type toggle shows email fields, hides URL and note fields", async () => {
+  // --- no type buttons: the type is derived from what you entered ---
+
+  await check("the form has no content-type buttons at all", async () => {
     const { window } = await run(async () => ({ ok: true, json: async () => ({}) }), { user: "jaschro", repo: "glob", token: "tkn" });
     const doc = window.document;
-    doc.querySelector('[data-type="email"]').dispatchEvent(new window.Event("click", { bubbles: true }));
-    assert.strictEqual(doc.getElementById("email-fields").classList.contains("hidden"), false);
-    assert.strictEqual(doc.getElementById("url-field").classList.contains("hidden"), true);
-    assert.strictEqual(doc.getElementById("note-field").classList.contains("hidden"), true);
-    assert.strictEqual(doc.getElementById("post-body-field").classList.contains("hidden"), true);
+    assert.strictEqual(doc.querySelectorAll("[data-type]").length, 0);
+    assert.strictEqual(doc.getElementById("type-grid"), null);
   });
 
-  await check("pasting a YouTube URL while Tweet is selected auto-switches the type (prevents the broken-embed bug)", async () => {
+  await check("link and body fields are always visible -- nothing to switch on first", async () => {
     const { window } = await run(async () => ({ ok: true, json: async () => ({}) }), { user: "jaschro", repo: "glob", token: "tkn" });
     const doc = window.document;
-    assert.strictEqual(doc.querySelector('[data-type="tweet"]').classList.contains("active"), true, "sanity: starts on Tweet");
-    setVal(doc, "f-url", "https://www.youtube.com/watch?v=ncYOVGrbHwo");
-    assert.strictEqual(doc.querySelector('[data-type="youtube"]').classList.contains("active"), true);
-    assert.strictEqual(doc.querySelector('[data-type="tweet"]').classList.contains("active"), false);
+    assert.strictEqual(doc.getElementById("url-field").classList.contains("hidden"), false);
+    assert.strictEqual(doc.getElementById("body-field").classList.contains("hidden"), false);
   });
 
-  await check("pasting a Spotify/SoundCloud URL auto-switches to Music", async () => {
+  await check("email details stay folded away until there's something in them", async () => {
     const { window } = await run(async () => ({ ok: true, json: async () => ({}) }), { user: "jaschro", repo: "glob", token: "tkn" });
-    const doc = window.document;
-    setVal(doc, "f-url", "https://open.spotify.com/track/abc123");
-    assert.strictEqual(doc.querySelector('[data-type="music"]').classList.contains("active"), true);
+    assert.strictEqual(window.document.getElementById("email-fields").open, false);
   });
 
-  await check("pasting an unrecognized URL leaves the currently-selected type alone", async () => {
-    const { window } = await run(async () => ({ ok: true, json: async () => ({}) }), { user: "jaschro", repo: "glob", token: "tkn" });
+  // Each of these saves the SAME form, changing only what was typed, and
+  // asserts the frontmatter type the site needs came out right on its own.
+  async function typeFor(fillFn) {
+    const { window, getRequest } = await run(async () => ({ ok: true, json: async () => ({}) }), { user: "jaschro", repo: "glob", token: "tkn" });
     const doc = window.document;
-    doc.querySelector('[data-type="powerbi"]').dispatchEvent(new window.Event("click", { bubbles: true }));
-    setVal(doc, "f-url", "https://example.com/some-random-page");
-    assert.strictEqual(doc.querySelector('[data-type="powerbi"]').classList.contains("active"), true);
+    setVal(doc, "f-title", "Whatever");
+    setVal(doc, "f-category", "General");
+    fillFn(doc);
+    submit(doc);
+    await new Promise((r) => setTimeout(r, 30));
+    const decoded = Buffer.from(JSON.parse(getRequest().opts.body).content, "base64").toString("utf8");
+    return (decoded.match(/^type: (.+)$/m) || [])[1];
+  }
+
+  await check("a YouTube link saves as a youtube post without being told", async () => {
+    assert.strictEqual(await typeFor((d) => setVal(d, "f-url", "https://www.youtube.com/watch?v=ncYOVGrbHwo")), "youtube");
   });
 
-  await check("opening a mistyped post (YouTube URL saved as tweet) for editing auto-corrects the type", async () => {
-    const rawWrongType = [
-      "---",
-      'title: "Life is Life"',
-      "date: 2026-08-16",
-      "type: tweet",
-      'categories: ["Music"]',
-      'source_url: "https://www.youtube.com/watch?v=pATX-lV0VFk"',
-      "---",
-      "",
-      ""
-    ].join("\n");
-    const editUrl = "https://jaschro.github.io/glob/add/?edit=2026-08-16-life-is-life.md";
-    const mockFetch = (url, opts) => {
-      if (!opts || !opts.method) {
-        return { ok: true, json: async () => ({ content: Buffer.from(rawWrongType, "utf8").toString("base64"), sha: "sha1" }) };
-      }
-      return { ok: true, json: async () => ({}) };
-    };
-    const { window } = await run(mockFetch, { user: "jaschro", repo: "glob", token: "tkn" }, editUrl);
-    const doc = window.document;
-    assert.strictEqual(doc.querySelector('[data-type="youtube"]').classList.contains("active"), true, "should self-correct from tweet to youtube");
-    assert.strictEqual(doc.getElementById("f-url").value, "https://www.youtube.com/watch?v=pATX-lV0VFk");
+  await check("an x.com link saves as a tweet without being told", async () => {
+    assert.strictEqual(await typeFor((d) => setVal(d, "f-url", "https://x.com/someone/status/123")), "tweet");
+  });
+
+  await check("a Spotify link saves as music without being told", async () => {
+    assert.strictEqual(await typeFor((d) => setVal(d, "f-url", "https://open.spotify.com/track/abc")), "music");
+  });
+
+  await check("a PowerBI link saves as powerbi without being told", async () => {
+    assert.strictEqual(await typeFor((d) => setVal(d, "f-url", "https://app.powerbi.com/view?r=abc")), "powerbi");
+  });
+
+  await check("an unrecognised link saves as a plain link, not a broken embed", async () => {
+    assert.strictEqual(await typeFor((d) => setVal(d, "f-url", "https://example.com/an-article")), "link");
+  });
+
+  await check("body text with no link saves as a plain post", async () => {
+    assert.strictEqual(await typeFor((d) => setVal(d, "f-body", "Just something I wrote.")), "post");
+  });
+
+  await check("filling in the email details makes it an email post", async () => {
+    assert.strictEqual(await typeFor((d) => {
+      setVal(d, "f-email-from", "billing@utilityco.example");
+      setVal(d, "f-body", "The charge was reversed.");
+    }), "email");
   });
 
   // --- formatting toolbar ---
   function fmtSetup(doc, window, text, selStart, selEnd) {
-    doc.querySelector('[data-type="post"]').dispatchEvent(new window.Event("click", { bubbles: true }));
-    const ta = doc.getElementById("f-post-body");
+    const ta = doc.getElementById("f-body");
     ta.value = text;
     ta.setSelectionRange(selStart, selEnd === undefined ? selStart : selEnd);
     return ta;
   }
   function clickFmt(doc, window, fmt) {
-    doc.querySelector('.fmt-bar[data-for="f-post-body"] [data-fmt="' + fmt + '"]')
+    doc.querySelector('.fmt-bar[data-for="f-body"] [data-fmt="' + fmt + '"]')
       .dispatchEvent(new window.MouseEvent("click", { bubbles: true }));
   }
 
@@ -229,22 +235,31 @@ async function main() {
     assert.ok(decoded.includes("- Ice cream\n- Pizza"));
   });
 
-  await check("tweet type (default) shows URL and note fields, hides body field", async () => {
-    const { window } = await run(async () => ({ ok: true, json: async () => ({}) }), { user: "jaschro", repo: "glob", token: "tkn" });
+  await check("a link and body text can go in the same post", async () => {
+    const { window, getRequest } = await run(async () => ({ ok: true, json: async () => ({}) }), { user: "jaschro", repo: "glob", token: "tkn" });
     const doc = window.document;
-    assert.strictEqual(doc.getElementById("url-field").classList.contains("hidden"), false);
-    assert.strictEqual(doc.getElementById("note-field").classList.contains("hidden"), false);
-    assert.strictEqual(doc.getElementById("post-body-field").classList.contains("hidden"), true);
+    setVal(doc, "f-title", "Rappers Delight");
+    setVal(doc, "f-category", "Music");
+    setVal(doc, "f-url", "https://www.youtube.com/watch?v=ncYOVGrbHwo");
+    setVal(doc, "f-body", "Worth it for the chef.\n\nhttps://youtu.be/pATX-lV0VFk");
+    submit(doc);
+    await new Promise((r) => setTimeout(r, 30));
+    const decoded = Buffer.from(JSON.parse(getRequest().opts.body).content, "base64").toString("utf8");
+    assert.ok(decoded.includes('source_url: "https://www.youtube.com/watch?v=ncYOVGrbHwo"'));
+    assert.ok(decoded.includes("Worth it for the chef."));
+    assert.ok(decoded.includes("https://youtu.be/pATX-lV0VFk"),
+      "a second link in the body is kept verbatim so the site can embed it too");
   });
 
-  await check("post type shows only the body field, hides URL/note/email", async () => {
-    const { window } = await run(async () => ({ ok: true, json: async () => ({}) }), { user: "jaschro", repo: "glob", token: "tkn" });
+  await check("saving with nothing but a title and category is refused", async () => {
+    const { window, getRequest } = await run(async () => { throw new Error("must not be called"); }, { user: "jaschro", repo: "glob", token: "tkn" });
     const doc = window.document;
-    doc.querySelector('[data-type="post"]').dispatchEvent(new window.Event("click", { bubbles: true }));
-    assert.strictEqual(doc.getElementById("post-body-field").classList.contains("hidden"), false);
-    assert.strictEqual(doc.getElementById("url-field").classList.contains("hidden"), true);
-    assert.strictEqual(doc.getElementById("note-field").classList.contains("hidden"), true);
-    assert.strictEqual(doc.getElementById("email-fields").classList.contains("hidden"), true);
+    setVal(doc, "f-title", "Empty");
+    setVal(doc, "f-category", "General");
+    submit(doc);
+    await new Promise((r) => setTimeout(r, 20));
+    assert.strictEqual(getRequest(), null);
+    assert.ok(doc.getElementById("status").textContent.includes("nothing to save"));
   });
 
   await check("settings screen has a Save button that persists and returns to the main screen", async () => {
@@ -362,6 +377,7 @@ async function main() {
     const doc = window.document;
     setVal(doc, "f-title", "Life is Life");
     setVal(doc, "f-category", "Music");
+    setVal(doc, "f-url", "https://youtu.be/pATX-lV0VFk");
     submit(doc);
     await new Promise((r) => setTimeout(r, 30));
     const statusHtml = doc.getElementById("status").innerHTML;
@@ -377,6 +393,7 @@ async function main() {
     const doc = window.document;
     setVal(doc, "f-title", "Life is Life");
     setVal(doc, "f-category", "Music");
+    setVal(doc, "f-url", "https://youtu.be/pATX-lV0VFk");
     submit(doc);
     await new Promise((r) => setTimeout(r, 30));
     const statusHtml = doc.getElementById("status").innerHTML;
@@ -388,11 +405,10 @@ async function main() {
   await check("email submission puts the body after frontmatter, not in it", async () => {
     const { window, getRequest } = await run(async () => ({ ok: true, json: async () => ({}) }), { user: "jaschro", repo: "glob", token: "tkn123" });
     const doc = window.document;
-    doc.querySelector('[data-type="email"]').dispatchEvent(new window.Event("click", { bubbles: true }));
     setVal(doc, "f-title", "Utility note");
     setVal(doc, "f-category", "Personal");
     setVal(doc, "f-email-from", "billing@utilityco.example");
-    setVal(doc, "f-email-body", "The charge was reversed.");
+    setVal(doc, "f-body", "The charge was reversed.");
     submit(doc);
     await new Promise((r) => setTimeout(r, 30));
     const body = JSON.parse(getRequest().opts.body);
@@ -406,6 +422,7 @@ async function main() {
     const doc = window.document;
     setVal(doc, "f-title", "Café ☕ post");
     setVal(doc, "f-category", "Personal");
+    setVal(doc, "f-body", "Some body text.");
     submit(doc);
     await new Promise((r) => setTimeout(r, 30));
     const body = JSON.parse(getRequest().opts.body);
@@ -418,6 +435,7 @@ async function main() {
     const doc = window.document;
     setVal(doc, "f-title", "Will fail");
     setVal(doc, "f-category", "Test");
+    setVal(doc, "f-body", "Some body text.");
     submit(doc);
     await new Promise((r) => setTimeout(r, 30));
     assert.ok(doc.getElementById("status").textContent.includes("Bad credentials"));
@@ -430,7 +448,7 @@ async function main() {
     setVal(doc, "f-title", "Cool thread");
     setVal(doc, "f-category", "Technology");
     setVal(doc, "f-url", "https://twitter.com/x/status/456");
-    setVal(doc, "f-note", "Worth reading for the third reply.");
+    setVal(doc, "f-body", "Worth reading for the third reply.");
     submit(doc);
     await new Promise((r) => setTimeout(r, 30));
     const body = JSON.parse(getRequest().opts.body);
@@ -442,10 +460,9 @@ async function main() {
   await check("Post type submits a long-form body with no source_url", async () => {
     const { window, getRequest } = await run(async () => ({ ok: true, json: async () => ({}) }), { user: "jaschro", repo: "glob", token: "tkn123" });
     const doc = window.document;
-    doc.querySelector('[data-type="post"]').dispatchEvent(new window.Event("click", { bubbles: true }));
     setVal(doc, "f-title", "A written post");
     setVal(doc, "f-category", "Journal");
-    setVal(doc, "f-post-body", "This is the full text of a normal blog post.");
+    setVal(doc, "f-body", "This is the full text of a normal blog post.");
     submit(doc);
     await new Promise((r) => setTimeout(r, 30));
     const body = JSON.parse(getRequest().opts.body);
@@ -458,7 +475,6 @@ async function main() {
   await check("Post type blocks submit when the body is empty", async () => {
     const { window, getRequest } = await run(async () => { throw new Error("must not be called"); }, { user: "jaschro", repo: "glob", token: "tkn" });
     const doc = window.document;
-    doc.querySelector('[data-type="post"]').dispatchEvent(new window.Event("click", { bubbles: true }));
     setVal(doc, "f-title", "Empty post");
     setVal(doc, "f-category", "Journal");
     submit(doc);
@@ -516,7 +532,7 @@ async function main() {
     assert.strictEqual(doc.getElementById("f-category").value, "Personal");
     assert.strictEqual(doc.getElementById("f-subcategory").value, "Admin");
     assert.strictEqual(doc.getElementById("f-email-from").value, "billing@utilityco.example");
-    assert.ok(doc.getElementById("f-email-body").value.includes("duplicate charge has been reversed"));
+    assert.ok(doc.getElementById("f-body").value.includes("duplicate charge has been reversed"));
     assert.strictEqual(doc.getElementById("email-fields").classList.contains("hidden"), false);
     assert.strictEqual(doc.getElementById("submit-btn").textContent, "Save");
     assert.strictEqual(doc.getElementById("danger-zone").classList.contains("hidden"), false);
@@ -526,7 +542,7 @@ async function main() {
   await check("saving an edited post PUTs to the original path with the original sha", async () => {
     const { window, getRequests } = await run(mockGetExisting, { user: "jaschro", repo: "glob", token: "tkn" }, EDIT_URL);
     const doc = window.document;
-    setVal(doc, "f-email-body", "Thanks for confirming -- updated text.");
+    setVal(doc, "f-body", "Thanks for confirming -- updated text.");
     submit(doc);
     await new Promise((r) => setTimeout(r, 30));
     const reqs = getRequests();
@@ -603,6 +619,7 @@ async function main() {
     // guard (not just the disabled attribute) is what's actually stopping this.
     setVal(doc, "f-title", "Should not be created");
     setVal(doc, "f-category", "Test");
+    setVal(doc, "f-body", "Some body text.");
     submit(doc);
     await new Promise((r) => setTimeout(r, 30));
     const reqs = getRequests();
@@ -615,6 +632,7 @@ async function main() {
     const doc = window.document;
     setVal(doc, "f-title", "Will fail 2");
     setVal(doc, "f-category", "Test");
+    setVal(doc, "f-body", "Some body text.");
     submit(doc);
     await new Promise((r) => setTimeout(r, 30));
     assert.ok(doc.getElementById("status").textContent.includes("500"));

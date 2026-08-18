@@ -40,12 +40,13 @@ textarea.tall{min-height:11rem}
 .fmt-bar button:hover{border-color:var(--accent);color:var(--accent)}
 .fmt-hint{font-size:0.75rem;color:var(--muted);margin:0.35rem 0 0}
 input[type="file"]{padding:0.5rem 0.4rem;background:transparent;border:1px dashed var(--border)}
-.type-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:0.5rem;margin-bottom:1rem}
-.type-btn{
-  padding:0.6rem 0.4rem;border:1px solid var(--border);border-radius:8px;background:var(--card);
-  color:var(--fg);font-size:0.82rem;text-align:center;cursor:pointer;
+.extra-fields{
+  border:1px solid var(--border);border-radius:8px;padding:0.5rem 0.75rem;margin-bottom:1rem;
 }
-.type-btn.active{border-color:var(--accent);color:var(--accent);font-weight:600;background:rgba(53,82,107,0.08)}
+.extra-fields summary{
+  cursor:pointer;font-size:0.82rem;color:var(--muted);padding:0.15rem 0;
+}
+.extra-fields[open] summary{margin-bottom:0.75rem}
 .hidden{display:none !important}
 button.submit{
   width:100%;padding:0.8rem;border:none;border-radius:8px;background:var(--accent);
@@ -82,15 +83,6 @@ button.delete-btn:disabled{opacity:0.5}
   <div><a href="../posts/">&larr; back to Glob</a></div>
 
   <form id="add-form">
-    <div class="type-grid" id="type-grid">
-      <div class="type-btn active" data-type="tweet">Tweet / X</div>
-      <div class="type-btn" data-type="youtube">YouTube</div>
-      <div class="type-btn" data-type="music">Music</div>
-      <div class="type-btn" data-type="powerbi">PowerBI</div>
-      <div class="type-btn" data-type="email">Email</div>
-      <div class="type-btn" data-type="post">Post</div>
-    </div>
-
     <div class="field">
       <label for="f-title">Title</label>
       <input id="f-title" type="text" required placeholder="What is this?">
@@ -109,13 +101,14 @@ button.delete-btn:disabled{opacity:0.5}
     </div>
 
     <div class="field" id="url-field">
-      <label for="f-url">Source URL</label>
+      <label for="f-url">Link (optional)</label>
       <input id="f-url" type="url" placeholder="https://…">
+      <p class="fmt-hint">A tweet, video, track or dashboard link embeds itself &mdash; no need to say which.</p>
     </div>
 
-    <div class="field" id="note-field">
-      <label for="f-note">Leading text (optional)</label>
-      <div class="fmt-bar" data-for="f-note">
+    <div class="field" id="body-field">
+      <label for="f-body">Body (optional)</label>
+      <div class="fmt-bar" data-for="f-body">
         <button type="button" data-fmt="bold" title="Bold"><b>B</b></button>
         <button type="button" data-fmt="italic" title="Italic"><i>I</i></button>
         <button type="button" data-fmt="underline" title="Underline"><u>U</u></button>
@@ -123,10 +116,12 @@ button.delete-btn:disabled{opacity:0.5}
         <button type="button" data-fmt="number" title="Numbered list">1. List</button>
         <button type="button" data-fmt="indent" title="Indent">&rarr;</button>
       </div>
-      <textarea id="f-note" placeholder="A note to show above the embed…"></textarea>
+      <textarea id="f-body" class="tall" placeholder="Write anything. Paste more links on their own line and they embed too…"></textarea>
+      <p class="fmt-hint">Line breaks are kept as you type them. Any link on its own line becomes an embed, so one post can hold several.</p>
     </div>
 
-    <div id="email-fields" class="hidden">
+    <details class="extra-fields" id="email-fields">
+      <summary>Email details &mdash; only if you're saving an email</summary>
       <div class="field">
         <label for="f-email-from">From</label>
         <input id="f-email-from" type="text" placeholder="sender@example.com">
@@ -135,33 +130,7 @@ button.delete-btn:disabled{opacity:0.5}
         <label for="f-email-subject">Subject</label>
         <input id="f-email-subject" type="text" placeholder="Subject line">
       </div>
-      <div class="field">
-        <label for="f-email-body">Body</label>
-        <div class="fmt-bar" data-for="f-email-body">
-          <button type="button" data-fmt="bold" title="Bold"><b>B</b></button>
-          <button type="button" data-fmt="italic" title="Italic"><i>I</i></button>
-          <button type="button" data-fmt="underline" title="Underline"><u>U</u></button>
-          <button type="button" data-fmt="bullet" title="Bulleted list">&bull; List</button>
-          <button type="button" data-fmt="number" title="Numbered list">1. List</button>
-          <button type="button" data-fmt="indent" title="Indent">&rarr;</button>
-        </div>
-        <textarea id="f-email-body" placeholder="Quoted email text…"></textarea>
-      </div>
-    </div>
-
-    <div class="field hidden" id="post-body-field">
-      <label for="f-post-body">Body</label>
-      <div class="fmt-bar" data-for="f-post-body">
-        <button type="button" data-fmt="bold" title="Bold"><b>B</b></button>
-        <button type="button" data-fmt="italic" title="Italic"><i>I</i></button>
-        <button type="button" data-fmt="underline" title="Underline"><u>U</u></button>
-        <button type="button" data-fmt="bullet" title="Bulleted list">&bull; List</button>
-        <button type="button" data-fmt="number" title="Numbered list">1. List</button>
-        <button type="button" data-fmt="indent" title="Indent">&rarr;</button>
-      </div>
-      <textarea id="f-post-body" class="tall" placeholder="Write the post…"></textarea>
-      <p class="fmt-hint">Line breaks are kept as you type them. Select text and use the buttons above, or type Markdown directly.</p>
-    </div>
+    </details>
 
     <div class="field" id="images-field">
       <label for="f-images">Images (optional)</label>
@@ -204,7 +173,6 @@ button.delete-btn:disabled{opacity:0.5}
   "use strict";
 
   var cfg = { user: "", repo: "", token: "" };
-  var currentType = "tweet";
   // Set once an ?edit= link loads an existing post: { path, sha, originalDate }
   var editState = null;
   // Holds an edit target requested before Settings had credentials saved.
@@ -224,7 +192,6 @@ button.delete-btn:disabled{opacity:0.5}
     cfgUser: document.getElementById("cfg-user"),
     cfgRepo: document.getElementById("cfg-repo"),
     cfgToken: document.getElementById("cfg-token"),
-    typeGrid: document.getElementById("type-grid"),
     form: document.getElementById("add-form"),
     formHeading: document.getElementById("form-heading"),
     title: document.getElementById("f-title"),
@@ -232,31 +199,16 @@ button.delete-btn:disabled{opacity:0.5}
     subcategory: document.getElementById("f-subcategory"),
     categoryList: document.getElementById("category-list"),
     subcategoryList: document.getElementById("subcategory-list"),
-    urlField: document.getElementById("url-field"),
     url: document.getElementById("f-url"),
-    noteField: document.getElementById("note-field"),
-    note: document.getElementById("f-note"),
+    body: document.getElementById("f-body"),
     emailFields: document.getElementById("email-fields"),
     emailFrom: document.getElementById("f-email-from"),
     emailSubject: document.getElementById("f-email-subject"),
-    emailBody: document.getElementById("f-email-body"),
-    postBodyField: document.getElementById("post-body-field"),
-    postBody: document.getElementById("f-post-body"),
     images: document.getElementById("f-images"),
     submitBtn: document.getElementById("submit-btn"),
     deleteBtn: document.getElementById("delete-btn"),
     dangerZone: document.getElementById("danger-zone"),
     status: document.getElementById("status")
-  };
-
-  // Which fields are visible for each capture type.
-  var FIELD_VISIBILITY = {
-    tweet:   { url: true,  note: true,  email: false, postBody: false },
-    youtube: { url: true,  note: true,  email: false, postBody: false },
-    music:   { url: true,  note: true,  email: false, postBody: false },
-    powerbi: { url: true,  note: true,  email: false, postBody: false },
-    email:   { url: false, note: false, email: true,  postBody: false },
-    post:    { url: false, note: false, email: false, postBody: true  }
   };
 
   function showScreen(name) {
@@ -343,28 +295,6 @@ button.delete-btn:disabled{opacity:0.5}
       });
   });
 
-  function applyTypeVisibility() {
-    var v = FIELD_VISIBILITY[currentType] || FIELD_VISIBILITY.tweet;
-    els.urlField.classList.toggle("hidden", !v.url);
-    els.noteField.classList.toggle("hidden", !v.note);
-    els.emailFields.classList.toggle("hidden", !v.email);
-    els.postBodyField.classList.toggle("hidden", !v.postBody);
-  }
-
-  function setActiveType(type) {
-    currentType = type;
-    Array.prototype.forEach.call(els.typeGrid.children, function (c) {
-      c.classList.toggle("active", c.getAttribute("data-type") === type);
-    });
-    applyTypeVisibility();
-  }
-
-  els.typeGrid.addEventListener("click", function (e) {
-    var btn = e.target.closest(".type-btn");
-    if (!btn) return;
-    setActiveType(btn.getAttribute("data-type"));
-  });
-
   // --- formatting toolbar -------------------------------------------------
   // The body fields are plain textareas that get rendered as Markdown. These
   // buttons insert the right Markdown so you don't have to know the syntax.
@@ -435,23 +365,25 @@ button.delete-btn:disabled{opacity:0.5}
     });
   });
 
-  // Guesses the right type from a pasted URL -- this is what's supposed to
-  // stop "pasted a YouTube link but Tweet was still selected" from silently
-  // producing a broken embed, which is exactly what happened the first time.
-  // Only recognizes clearly-identifiable URLs; anything else leaves the
-  // current type alone.
+  // The post's "type" is worked out from what you actually entered, rather
+  // than asked for up front. It only affects how the top-level link renders
+  // and stays in the frontmatter so older posts keep working; links inside
+  // the body are embedded by the site itself, independent of this.
   function detectTypeFromUrl(url) {
     if (!url) return null;
     if (/(youtube\.com\/(watch|shorts)|youtu\.be\/)/i.test(url)) return "youtube";
     if (/(open\.spotify\.com|soundcloud\.com|bandcamp\.com)/i.test(url)) return "music";
     if (/(twitter\.com|x\.com)\/[^/]+\/status/i.test(url)) return "tweet";
+    if (/(app\.powerbi\.com|powerbi\.com\/view)/i.test(url)) return "powerbi";
     return null;
   }
 
-  els.url.addEventListener("input", function () {
-    var detected = detectTypeFromUrl(els.url.value.trim());
-    if (detected && detected !== currentType) setActiveType(detected);
-  });
+  function derivePostType(fields) {
+    if (fields.emailFrom || fields.emailSubject) return "email";
+    var fromUrl = detectTypeFromUrl(fields.url);
+    if (fromUrl) return fromUrl;
+    return fields.url ? "link" : "post";
+  }
 
   // Populate category/subcategory suggestions from the live post index.
   // Failure here is non-fatal -- the form still works, just without autocomplete.
@@ -533,20 +465,12 @@ button.delete-btn:disabled{opacity:0.5}
     fm += "categories: [" + JSON.stringify(fields.category) + "]\n";
     if (fields.subcategory) fm += "subcategory: " + JSON.stringify(fields.subcategory) + "\n";
 
-    var body = "";
-    if (fields.type === "email") {
-      if (fields.emailFrom) fm += "email_from: " + JSON.stringify(fields.emailFrom) + "\n";
-      if (fields.emailSubject) fm += "email_subject: " + JSON.stringify(fields.emailSubject) + "\n";
-      fm += "---\n\n";
-      body = fields.emailBody || "";
-    } else if (fields.type === "post") {
-      fm += "---\n\n";
-      body = fields.postBody || "";
-    } else {
-      fm += "source_url: " + JSON.stringify(fields.url || "") + "\n";
-      fm += "---\n\n";
-      body = fields.note || "";
-    }
+    if (fields.emailFrom) fm += "email_from: " + JSON.stringify(fields.emailFrom) + "\n";
+    if (fields.emailSubject) fm += "email_subject: " + JSON.stringify(fields.emailSubject) + "\n";
+    if (fields.url) fm += "source_url: " + JSON.stringify(fields.url) + "\n";
+    fm += "---\n\n";
+
+    var body = fields.body || "";
 
     if (fields.images && fields.images.length) {
       var imgMd = fields.images.map(function (src) { return "![](" + src + ")"; }).join("\n\n");
@@ -683,12 +607,12 @@ button.delete-btn:disabled{opacity:0.5}
     return chain.then(function () { return paths; });
   }
 
-  // Populates the form from a parsed existing post, matching whatever
-  // type/fields it was saved with.
+  // Populates the form from a parsed existing post. Every older post shape --
+  // a note above an embed, an email body, a long-form post -- maps onto the
+  // one body field, so posts written under the old typed form still open and
+  // save correctly here.
   function fillFormFromParsed(parsed) {
     var f = parsed.fields;
-    var type = FIELD_VISIBILITY[f.type] ? f.type : "tweet";
-    setActiveType(type);
 
     els.title.value = f.title || "";
     els.category.value = (f.categories && f.categories[0]) || "";
@@ -696,20 +620,11 @@ button.delete-btn:disabled{opacity:0.5}
     els.url.value = f.source_url || "";
     els.emailFrom.value = f.email_from || "";
     els.emailSubject.value = f.email_subject || "";
+    els.body.value = parsed.body || "";
 
-    // Catches posts saved with the wrong type selected (e.g. a YouTube link
-    // saved as "tweet" because Tweet was still the active button) -- opening
-    // Edit auto-corrects the type so a Save immediately fixes the embed.
-    var detected = detectTypeFromUrl(f.source_url || "");
-    if (detected && detected !== type) setActiveType(detected);
-
-    if (type === "email") {
-      els.emailBody.value = parsed.body || "";
-    } else if (type === "post") {
-      els.postBody.value = parsed.body || "";
-    } else {
-      els.note.value = parsed.body || "";
-    }
+    // Only unfold the email section when there's something in it, so it stays
+    // out of the way for the posts that aren't emails.
+    els.emailFields.open = !!(f.email_from || f.email_subject);
   }
 
   // True for the entire time we're on an edit journey (from the moment the
@@ -818,8 +733,9 @@ button.delete-btn:disabled{opacity:0.5}
       setStatus("bad", "Title and category are required.");
       return;
     }
-    if (currentType === "post" && !els.postBody.value.trim()) {
-      setStatus("bad", "Body is required for a Post.");
+    var imagesPicked = !!((els.images && els.images.files || []).length);
+    if (!els.url.value.trim() && !els.body.value.trim() && !imagesPicked) {
+      setStatus("bad", "Add a link, some body text, or an image — otherwise there's nothing to save.");
       return;
     }
 
@@ -840,20 +756,19 @@ button.delete-btn:disabled{opacity:0.5}
       })
       .then(function (imagePaths) {
         els.submitBtn.textContent = savingLabel;
-        var content = buildFrontmatter({
+        var fields = {
           title: title,
           date: dateStr,
-          type: currentType,
           category: category,
           subcategory: els.subcategory.value.trim(),
           url: els.url.value.trim(),
-          note: els.note.value.trim(),
-          postBody: els.postBody.value,
+          body: els.body.value,
           emailFrom: els.emailFrom.value.trim(),
           emailSubject: els.emailSubject.value.trim(),
-          emailBody: els.emailBody.value,
           images: imagePaths
-        });
+        };
+        fields.type = derivePostType(fields);
+        var content = buildFrontmatter(fields);
         if (editState) {
           return githubPut(editState.path, utf8ToBase64(content), "Update post: " + title, editState.sha);
         }
@@ -871,7 +786,7 @@ button.delete-btn:disabled{opacity:0.5}
           // like nothing happened even when the save genuinely succeeded.
           setStatus("ok", 'Added! <a href="../posts/' + dateStr + '-' + slug + '/">View post</a> (may take a minute or two to build).');
           els.form.reset();
-          setActiveType("tweet");
+          els.emailFields.open = false;
           els.title.focus();
         }
         loadSuggestions();
@@ -905,7 +820,6 @@ button.delete-btn:disabled{opacity:0.5}
 
   loadCfg();
   loadSuggestions();
-  applyTypeVisibility();
 
   var searchParams = new URLSearchParams(window.location.search);
   var editParam = searchParams.get("edit");
