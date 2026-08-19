@@ -1,5 +1,5 @@
 ---
-title: "Worth a try"
+title: "Paper Glider --> Worth a try"
 date: 2026-08-18
 type: tweet
 categories: ["Science"]
