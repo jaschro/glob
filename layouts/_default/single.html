@@ -8,9 +8,12 @@
         {{ with .Params.categories }}
           {{ range . }}<a class="tag" href="{{ "posts/" | relURL }}?category={{ . | urlquery }}">{{ . }}</a>{{ end }}
         {{ end }}
-        {{ with .Params.subcategory }}
-          {{ $cat := index (default (slice "") $.Params.categories) 0 }}
-          <a class="tag subtag" href="{{ "posts/" | relURL }}?category={{ $cat | urlquery }}&subcategory={{ . | urlquery }}">{{ . }}</a>
+        {{/* Posts saved before tags existed carry a single "subcategory" --
+             shown here as a tag so nothing has to be migrated by hand. */}}
+        {{ $tags := .Params.tags | default slice }}
+        {{ with .Params.subcategory }}{{ $tags = $tags | append . }}{{ end }}
+        {{ range ($tags | uniq) }}
+          <a class="tag subtag" href="{{ "posts/" | relURL }}?tags={{ . | urlquery }}">{{ . }}</a>
         {{ end }}
       </div>
     {{ end }}

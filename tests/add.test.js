@@ -23,8 +23,8 @@ async function run(mockFetch, presetCfg, url) {
       window.fetch = async (url, opts) => {
         if (String(url).includes("index.json")) {
           return { ok: true, json: async () => [
-            { title: "a", categories: ["Technology"], subcategory: "AI" },
-            { title: "b", categories: ["Music"], subcategory: "Live Sets" }
+            { title: "a", categories: ["Technology"], tags: ["AI", "prompting"] },
+            { title: "b", categories: ["Music"], tags: ["Live Sets"] }
           ]};
         }
         capturedRequest = { url, opts };
@@ -71,7 +71,7 @@ async function main() {
     assert.strictEqual(window.document.getElementById("screen-main").classList.contains("on"), true);
   });
 
-  await check("category/subcategory datalists populate from the live post index", async () => {
+  await check("category datalist populates from the live post index", async () => {
     const { window } = await run(async () => ({ ok: true, json: async () => ({}) }), { user: "jaschro", repo: "glob", token: "tkn" });
     const cats = Array.from(window.document.getElementById("category-list").options).map((o) => o.value);
     assert.deepStrictEqual(cats.sort(), ["Music", "Technology"]);
@@ -141,6 +141,52 @@ async function main() {
       setVal(d, "f-email-from", "billing@utilityco.example");
       setVal(d, "f-body", "The charge was reversed.");
     }), "email");
+  });
+
+  // --- tags ---
+
+  await check("tags are parsed from the comma list, trimmed and de-duplicated", async () => {
+    const { window, getRequest } = await run(async () => ({ ok: true, json: async () => ({}) }), { user: "jaschro", repo: "glob", token: "tkn" });
+    const doc = window.document;
+    setVal(doc, "f-title", "Tagged");
+    setVal(doc, "f-category", "General");
+    setVal(doc, "f-body", "Body.");
+    setVal(doc, "f-tags", "  funny ,, nostalgia,funny , video ");
+    submit(doc);
+    await new Promise((r) => setTimeout(r, 30));
+    const decoded = Buffer.from(JSON.parse(getRequest().opts.body).content, "base64").toString("utf8");
+    assert.ok(decoded.includes('tags: ["funny","nostalgia","video"]'), "got: " + decoded.split("\n")[4]);
+  });
+
+  await check("no tags means no tags line in the frontmatter at all", async () => {
+    const { window, getRequest } = await run(async () => ({ ok: true, json: async () => ({}) }), { user: "jaschro", repo: "glob", token: "tkn" });
+    const doc = window.document;
+    setVal(doc, "f-title", "Untagged");
+    setVal(doc, "f-category", "General");
+    setVal(doc, "f-body", "Body.");
+    submit(doc);
+    await new Promise((r) => setTimeout(r, 30));
+    const decoded = Buffer.from(JSON.parse(getRequest().opts.body).content, "base64").toString("utf8");
+    assert.ok(!decoded.includes("tags:"));
+  });
+
+  await check("tags already in use appear as one-tap chips", async () => {
+    const { window } = await run(async () => ({ ok: true, json: async () => ({}) }), { user: "jaschro", repo: "glob", token: "tkn" });
+    const doc = window.document;
+    const chips = Array.from(doc.querySelectorAll("#tag-suggestions button")).map((b) => b.textContent);
+    assert.deepStrictEqual(chips, ["AI", "Live Sets", "prompting"]);
+  });
+
+  await check("tapping a chip adds the tag, tapping again removes it", async () => {
+    const { window } = await run(async () => ({ ok: true, json: async () => ({}) }), { user: "jaschro", repo: "glob", token: "tkn" });
+    const doc = window.document;
+    const chip = Array.from(doc.querySelectorAll("#tag-suggestions button")).find((b) => b.textContent === "AI");
+    chip.dispatchEvent(new window.MouseEvent("click", { bubbles: true }));
+    assert.strictEqual(doc.getElementById("f-tags").value, "AI");
+    assert.strictEqual(chip.classList.contains("on"), true);
+    chip.dispatchEvent(new window.MouseEvent("click", { bubbles: true }));
+    assert.strictEqual(doc.getElementById("f-tags").value, "");
+    assert.strictEqual(chip.classList.contains("on"), false);
   });
 
   // --- formatting toolbar ---
@@ -354,7 +400,7 @@ async function main() {
     const doc = window.document;
     setVal(doc, "f-title", "A Cool Test Post!");
     setVal(doc, "f-category", "Technology");
-    setVal(doc, "f-subcategory", "AI");
+    setVal(doc, "f-tags", "AI, prompting");
     setVal(doc, "f-url", "https://twitter.com/x/status/123");
     submit(doc);
     await new Promise((r) => setTimeout(r, 30));
@@ -367,7 +413,7 @@ async function main() {
     const decoded = Buffer.from(body.content, "base64").toString("utf8");
     assert.ok(decoded.includes('type: tweet'));
     assert.ok(decoded.includes('categories: ["Technology"]'));
-    assert.ok(decoded.includes('subcategory: "AI"'));
+    assert.ok(decoded.includes('tags: ["AI","prompting"]'));
     assert.ok(decoded.includes('source_url: "https://twitter.com/x/status/123"'));
     assert.strictEqual(doc.getElementById("f-title").value, "", "form should reset after success");
   });
@@ -500,6 +546,26 @@ async function main() {
     assert.ok(decoded.includes("![](/glob/images/"));
   });
 
+  await check("image links follow the site root, so they survive a move to a custom domain", async () => {
+    // Same flow as above but served from a domain root instead of /glob/.
+    // Hardcoding "/glob/images/" here would 404 every image after the move.
+    const { window, getRequests } = await run(
+      async () => ({ ok: true, json: async () => ({}) }),
+      { user: "jaschro", repo: "glob", token: "tkn" },
+      "https://www.example.com/add/"
+    );
+    const doc = window.document;
+    setVal(doc, "f-title", "Photo post");
+    setVal(doc, "f-category", "Personal");
+    setFiles(doc, "f-images", [new window.File(["bytes"], "cat.png", { type: "image/png" })]);
+    submit(doc);
+    await new Promise((r) => setTimeout(r, 60));
+    const reqs = getRequests();
+    const decoded = Buffer.from(JSON.parse(reqs[reqs.length - 1].opts.body).content, "base64").toString("utf8");
+    assert.ok(decoded.includes("![](/images/"), "expected a root-relative image path");
+    assert.ok(!decoded.includes("/glob/"), "the github.io subpath must not leak onto a custom domain");
+  });
+
   const EDIT_URL = "https://jaschro.github.io/glob/add/?edit=2026-08-15-utility-bill-note.md";
   const EXISTING_RAW = [
     "---",
@@ -530,7 +596,8 @@ async function main() {
     assert.strictEqual(doc.getElementById("form-heading").textContent, "Edit post");
     assert.strictEqual(doc.getElementById("f-title").value, "Utility note");
     assert.strictEqual(doc.getElementById("f-category").value, "Personal");
-    assert.strictEqual(doc.getElementById("f-subcategory").value, "Admin");
+    assert.strictEqual(doc.getElementById("f-tags").value, "Admin",
+      "a legacy subcategory should load into the tags field so re-saving converts it");
     assert.strictEqual(doc.getElementById("f-email-from").value, "billing@utilityco.example");
     assert.ok(doc.getElementById("f-body").value.includes("duplicate charge has been reversed"));
     assert.strictEqual(doc.getElementById("email-fields").classList.contains("hidden"), false);

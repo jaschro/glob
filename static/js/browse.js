@@ -6,6 +6,7 @@
 
   var els = {
     categoryTree: document.getElementById("category-tree"),
+    tagTree: document.getElementById("tag-tree"),
     dateTree: document.getElementById("date-tree"),
     results: document.getElementById("browse-results"),
     empty: document.getElementById("browse-empty"),
@@ -15,8 +16,16 @@
     searchInput: document.getElementById("browse-search-input"),
     clearAllBtn: document.getElementById("clear-all"),
     categoryClearBtn: document.querySelector('[data-clear="category"]'),
+    tagClearBtn: document.querySelector('[data-clear="tag"]'),
     dateClearBtn: document.querySelector('[data-clear="date"]')
   };
+
+  // Plain .sort() is ASCII-ordered, which puts every capitalised name above
+  // every lowercase one ("Snapshots" before "prompting"). Tags get typed both
+  // ways, so compare case-insensitively or the list looks shuffled.
+  function byName(a, b) {
+    return a.toLowerCase().localeCompare(b.toLowerCase());
+  }
 
   var MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
     "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -32,6 +41,7 @@
     .then(function (data) {
       allItems = Array.isArray(data) ? data : [];
       buildCategoryTree(allItems);
+      buildTagTree(allItems);
       buildDateTree(allItems);
       if (els.searchInput) els.searchInput.value = state.q || "";
       render();
@@ -42,15 +52,19 @@
         els.status.textContent = "Couldn't load posts right now. Try refreshing.";
       }
       if (els.categoryTree) els.categoryTree.innerHTML = "";
+      if (els.tagTree) els.tagTree.innerHTML = "";
       if (els.dateTree) els.dateTree.innerHTML = "";
       console.error(err);
     });
 
   function readStateFromURL() {
     var params = new URLSearchParams(window.location.search);
+    // Several tags can be active at once and they narrow together, so they
+    // travel in the URL as one comma-separated value: ?tags=funny,video
+    var rawTags = params.get("tags") || "";
     return {
       category: params.get("category") || "",
-      subcategory: params.get("subcategory") || "",
+      tags: rawTags ? rawTags.split(",").map(function (t) { return t.trim(); }).filter(Boolean) : [],
       year: params.get("year") || "",
       month: params.get("month") || "",
       q: params.get("q") || ""
@@ -60,7 +74,7 @@
   function writeStateToURL() {
     var params = new URLSearchParams();
     if (state.category) params.set("category", state.category);
-    if (state.subcategory) params.set("subcategory", state.subcategory);
+    if (state.tags.length) params.set("tags", state.tags.join(","));
     if (state.year) params.set("year", state.year);
     if (state.month) params.set("month", state.month);
     if (state.q) params.set("q", state.q);
@@ -71,20 +85,15 @@
 
   function buildCategoryTree(items) {
     if (!els.categoryTree) return;
-    var tree = {}; // category -> { count, subs: { subcat -> count } }
+    var counts = {};
 
     items.forEach(function (item) {
-      var cats = item.categories || [];
-      cats.forEach(function (cat) {
-        if (!tree[cat]) tree[cat] = { count: 0, subs: {} };
-        tree[cat].count++;
-        if (item.subcategory) {
-          tree[cat].subs[item.subcategory] = (tree[cat].subs[item.subcategory] || 0) + 1;
-        }
+      (item.categories || []).forEach(function (cat) {
+        counts[cat] = (counts[cat] || 0) + 1;
       });
     });
 
-    var catNames = Object.keys(tree).sort();
+    var catNames = Object.keys(counts).sort(byName);
     els.categoryTree.innerHTML = "";
 
     if (catNames.length === 0) {
@@ -94,38 +103,45 @@
 
     catNames.forEach(function (cat) {
       var li = document.createElement("li");
-      var link = makeFilterLink(cat + " (" + tree[cat].count + ")", cat === state.category && !state.subcategory,
-        function () {
-          state.category = (state.category === cat && !state.subcategory) ? "" : cat;
-          state.subcategory = "";
-          afterFilterChange();
-        });
-      li.appendChild(link);
-
-      var subNames = Object.keys(tree[cat].subs).sort();
-      if (subNames.length) {
-        var subUl = document.createElement("ul");
-        subUl.className = "filter-subtree";
-        subNames.forEach(function (sub) {
-          var subLi = document.createElement("li");
-          var active = state.category === cat && state.subcategory === sub;
-          var subLink = makeFilterLink(sub + " (" + tree[cat].subs[sub] + ")", active, function () {
-            if (state.category === cat && state.subcategory === sub) {
-              state.category = "";
-              state.subcategory = "";
-            } else {
-              state.category = cat;
-              state.subcategory = sub;
-            }
-            afterFilterChange();
-          });
-          subLi.appendChild(subLink);
-          subUl.appendChild(subLi);
-        });
-        li.appendChild(subUl);
-      }
-
+      li.appendChild(makeFilterLink(cat + " (" + counts[cat] + ")", cat === state.category, function () {
+        // One category at a time -- clicking the active one clears it.
+        state.category = (state.category === cat) ? "" : cat;
+        afterFilterChange();
+      }));
       els.categoryTree.appendChild(li);
+    });
+  }
+
+  // Tags are flat and stack: picking two shows only posts carrying both,
+  // which is what makes them useful for narrowing across categories.
+  function buildTagTree(items) {
+    if (!els.tagTree) return;
+    var counts = {};
+
+    items.forEach(function (item) {
+      (item.tags || []).forEach(function (tag) {
+        counts[tag] = (counts[tag] || 0) + 1;
+      });
+    });
+
+    var tagNames = Object.keys(counts).sort(byName);
+    els.tagTree.innerHTML = "";
+
+    if (tagNames.length === 0) {
+      els.tagTree.innerHTML = '<li class="filter-tree-empty">No tags yet</li>';
+      return;
+    }
+
+    tagNames.forEach(function (tag) {
+      var li = document.createElement("li");
+      var active = state.tags.indexOf(tag) !== -1;
+      li.appendChild(makeFilterLink(tag + " (" + counts[tag] + ")", active, function () {
+        var i = state.tags.indexOf(tag);
+        if (i === -1) state.tags.push(tag);
+        else state.tags.splice(i, 1);
+        afterFilterChange();
+      }));
+      els.tagTree.appendChild(li);
     });
   }
 
@@ -204,6 +220,7 @@
   function afterFilterChange() {
     writeStateToURL();
     buildCategoryTree(allItems);
+    buildTagTree(allItems);
     buildDateTree(allItems);
     render();
   }
@@ -213,7 +230,13 @@
       var cats = item.categories || [];
       if (cats.indexOf(state.category) === -1) return false;
     }
-    if (state.subcategory && item.subcategory !== state.subcategory) return false;
+    if (state.tags.length) {
+      // Every selected tag must be present -- tags narrow, they don't widen.
+      var itemTags = item.tags || [];
+      for (var i = 0; i < state.tags.length; i++) {
+        if (itemTags.indexOf(state.tags[i]) === -1) return false;
+      }
+    }
     if (state.year) {
       var itemYear = (item.date || "").split("-")[0];
       if (itemYear !== state.year) return false;
@@ -227,8 +250,9 @@
       // item.text is the post's body copy (plus sender/subject on emails),
       // supplied by layouts/posts/list.json -- without it, search only ever
       // matched titles and metadata.
-      var haystack = [item.title, item.subcategory, item.type, item.text]
+      var haystack = [item.title, item.type, item.text]
         .concat(item.categories || [])
+        .concat(item.tags || [])
         .filter(Boolean)
         .join(" ")
         .toLowerCase();
@@ -314,11 +338,13 @@
   }
 
   function toggleClearButtons() {
-    var anyCategory = !!(state.category || state.subcategory);
+    var anyCategory = !!state.category;
+    var anyTag = state.tags.length > 0;
     var anyDate = !!(state.year || state.month);
-    var any = anyCategory || anyDate || !!state.q;
+    var any = anyCategory || anyTag || anyDate || !!state.q;
 
     if (els.categoryClearBtn) els.categoryClearBtn.hidden = !anyCategory;
+    if (els.tagClearBtn) els.tagClearBtn.hidden = !anyTag;
     if (els.dateClearBtn) els.dateClearBtn.hidden = !anyDate;
     if (els.clearAllBtn) els.clearAllBtn.hidden = !any;
   }
@@ -333,7 +359,11 @@
 
   function clearCategory() {
     state.category = "";
-    state.subcategory = "";
+    afterFilterChange();
+  }
+
+  function clearTags() {
+    state.tags = [];
     afterFilterChange();
   }
 
@@ -345,7 +375,7 @@
 
   function clearAll() {
     state.category = "";
-    state.subcategory = "";
+    state.tags = [];
     state.year = "";
     state.month = "";
     state.q = "";
@@ -354,6 +384,7 @@
   }
 
   if (els.categoryClearBtn) els.categoryClearBtn.addEventListener("click", clearCategory);
+  if (els.tagClearBtn) els.tagClearBtn.addEventListener("click", clearTags);
   if (els.dateClearBtn) els.dateClearBtn.addEventListener("click", clearDate);
   if (els.clearAllBtn) els.clearAllBtn.addEventListener("click", clearAll);
   if (els.emptyClearBtn) els.emptyClearBtn.addEventListener("click", clearAll);

@@ -23,6 +23,12 @@ const SHELL = `<!DOCTYPE html><html><body>
       <ul class="filter-tree" id="category-tree"><li class="filter-tree-loading">Loading…</li></ul>
     </div>
     <div class="filter-group">
+      <div class="filter-group-header"><h2>Tags</h2>
+        <button type="button" class="clear-link" data-clear="tag" hidden>clear</button>
+      </div>
+      <ul class="filter-tree" id="tag-tree"><li class="filter-tree-loading">Loading…</li></ul>
+    </div>
+    <div class="filter-group">
       <div class="filter-group-header"><h2>Dates</h2>
         <button type="button" class="clear-link" data-clear="date" hidden>clear</button>
       </div>
@@ -51,12 +57,12 @@ const SHELL = `<!DOCTYPE html><html><body>
 // sender/subject for emails. Kept deliberately distinct from the titles so
 // body-match and title-match cases can be told apart.
 const FIXTURE = [
-  { title: "A good thread on prompt design", url: "/glob/posts/1/", date: "2026-08-10", type: "tweet", categories: ["Technology"], subcategory: "AI", text: "Worth reading for the third reply about few-shot examples." },
-  { title: "Clear explainer on how CRDTs work", url: "/glob/posts/2/", date: "2026-08-12", type: "youtube", categories: ["Technology"], subcategory: "Distributed Systems", text: "Conflict-free replicated data types, explained with animations." },
-  { title: "Really good live set for working", url: "/glob/posts/3/", date: "2026-08-13", type: "music", categories: ["Music"], subcategory: "Live Sets", text: "Recorded at a warehouse in Berlin over three hours." },
-  { title: "Portfolio allocation snapshot", url: "/glob/posts/4/", date: "2026-08-14", type: "powerbi", categories: ["Investing"], subcategory: "Snapshots", text: "Allocation drifted toward equities this quarter." },
-  { title: "Note on the utility billing mixup", url: "/glob/posts/5/", date: "2026-08-15", type: "email", categories: ["Personal"], subcategory: "Admin", text: "The duplicate charge has been reversed. billing@utilityco.example Re: Account correction confirmed" },
-  { title: "Another AI thread from last year", url: "/glob/posts/6/", date: "2025-03-02", type: "tweet", categories: ["Technology"], subcategory: "AI", text: "Older thread, still relevant." }
+  { title: "A good thread on prompt design", url: "/glob/posts/1/", date: "2026-08-10", type: "tweet", categories: ["Technology"], tags: ["AI", "prompting"], text: "Worth reading for the third reply about few-shot examples." },
+  { title: "Clear explainer on how CRDTs work", url: "/glob/posts/2/", date: "2026-08-12", type: "youtube", categories: ["Technology"], tags: ["Distributed Systems", "video"], text: "Conflict-free replicated data types, explained with animations." },
+  { title: "Really good live set for working", url: "/glob/posts/3/", date: "2026-08-13", type: "music", categories: ["Music"], tags: ["Live Sets", "video"], text: "Recorded at a warehouse in Berlin over three hours." },
+  { title: "Portfolio allocation snapshot", url: "/glob/posts/4/", date: "2026-08-14", type: "powerbi", categories: ["Investing"], tags: ["Snapshots"], text: "Allocation drifted toward equities this quarter." },
+  { title: "Note on the utility billing mixup", url: "/glob/posts/5/", date: "2026-08-15", type: "email", categories: ["Personal"], tags: ["Admin"], text: "The duplicate charge has been reversed. billing@utilityco.example Re: Account correction confirmed" },
+  { title: "Another AI thread from last year", url: "/glob/posts/6/", date: "2025-03-02", type: "tweet", categories: ["Technology"], tags: ["AI"], text: "Older thread, still relevant." }
 ];
 
 async function run(url, fetchImpl) {
@@ -135,7 +141,7 @@ async function main() {
   });
 
   await check("excerpt text is inserted as text, never parsed as HTML", async () => {
-    const evil = [{ title: "Sneaky", url: "/glob/posts/9/", date: "2026-08-16", type: "post", categories: ["X"], subcategory: null, text: 'before <img src=x onerror=alert(1)> findme after' }];
+    const evil = [{ title: "Sneaky", url: "/glob/posts/9/", date: "2026-08-16", type: "post", categories: ["X"], tags: [], text: 'before <img src=x onerror=alert(1)> findme after' }];
     const win = await run("http://localhost/posts/?q=findme", async () => ({ ok: true, json: async () => evil }));
     const snip = win.document.querySelector("#browse-results .result-snippet");
     assert.ok(snip, "expected an excerpt");
@@ -152,12 +158,57 @@ async function main() {
     ]);
   });
 
-  await check("category+subcategory filter narrows further", async () => {
-    const win = await run("http://localhost/posts/?category=Technology&subcategory=AI");
+  await check("a single tag filters across every category", async () => {
+    // "video" spans Technology and Music -- the thing a nested subcategory
+    // could never do, and the reason tags replaced it.
+    const win = await run("http://localhost/posts/?tags=video");
     assert.deepStrictEqual(resultTitles(win), [
-      "A good thread on prompt design",
-      "Another AI thread from last year"
+      "Clear explainer on how CRDTs work",
+      "Really good live set for working"
     ]);
+  });
+
+  await check("two tags narrow rather than widen (AND, not OR)", async () => {
+    const win = await run("http://localhost/posts/?tags=AI,prompting");
+    assert.deepStrictEqual(resultTitles(win), ["A good thread on prompt design"],
+      "only the post carrying BOTH tags should survive");
+  });
+
+  await check("tags combine with a category filter", async () => {
+    const win = await run("http://localhost/posts/?category=Technology&tags=video");
+    assert.deepStrictEqual(resultTitles(win), ["Clear explainer on how CRDTs work"]);
+  });
+
+  await check("a tag no post carries gives the empty state, not a crash", async () => {
+    const win = await run("http://localhost/posts/?tags=video,Admin");
+    assert.strictEqual(win.document.querySelectorAll("#browse-results li").length, 0);
+    assert.strictEqual(win.document.getElementById("browse-empty").hidden, false);
+  });
+
+  await check("the tag sidebar lists every tag once, with counts", async () => {
+    const win = await run("http://localhost/posts/");
+    const labels = Array.from(win.document.querySelectorAll("#tag-tree a")).map((a) => a.textContent);
+    assert.deepStrictEqual(labels, [
+      "Admin (1)", "AI (2)", "Distributed Systems (1)", "Live Sets (1)",
+      "prompting (1)", "Snapshots (1)", "video (2)"
+    ]);
+  });
+
+  await check("clicking a tag toggles it on, then off again", async () => {
+    const win = await run("http://localhost/posts/");
+    const doc = win.document;
+    const tagLink = () => Array.from(doc.querySelectorAll("#tag-tree a")).find((a) => a.textContent.startsWith("video"));
+    tagLink().dispatchEvent(new win.MouseEvent("click", { bubbles: true, cancelable: true }));
+    assert.strictEqual(resultTitles(win).length, 2);
+    assert.ok(win.location.search.includes("tags=video"));
+    tagLink().dispatchEvent(new win.MouseEvent("click", { bubbles: true, cancelable: true }));
+    assert.strictEqual(resultTitles(win).length, 6, "clicking the active tag again clears it");
+    assert.ok(!win.location.search.includes("tags="));
+  });
+
+  await check("searching matches tag names too", async () => {
+    const win = await run("http://localhost/posts/?q=snapshots");
+    assert.deepStrictEqual(resultTitles(win), ["Portfolio allocation snapshot"]);
   });
 
   await check("year filter works", async () => {

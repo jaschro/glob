@@ -11,13 +11,20 @@
     {{ with $p.Params.email_from }}{{ $searchText = printf "%s %s" $searchText . }}{{ end }}
     {{ with $p.Params.email_subject }}{{ $searchText = printf "%s %s" $searchText . }}{{ end }}
     {{ $searchText = trim (replaceRE "\\s+" " " $searchText) " " }}
+    {{/* Tags replaced the old single "subcategory" field. Posts written
+         before that still carry one, so it's folded in here as just another
+         tag -- meaning old posts keep working with no migration, and
+         re-saving one through the form quietly upgrades it. */}}
+    {{ $tags := $p.Params.tags | default slice }}
+    {{ with $p.Params.subcategory }}{{ $tags = $tags | append . }}{{ end }}
+    {{ $tags = $tags | uniq }}
     {
       "title": {{ $p.Title | jsonify }},
       "url": {{ $p.RelPermalink | jsonify }},
       "date": {{ $p.Date.Format "2006-01-02" | jsonify }},
       "type": {{ $p.Params.type | jsonify }},
       "categories": {{ $p.Params.categories | jsonify }},
-      "subcategory": {{ $p.Params.subcategory | jsonify }},
+      "tags": {{ $tags | jsonify }},
       "text": {{ $searchText | jsonify }}
     }
   {{ end }}

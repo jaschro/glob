@@ -39,6 +39,13 @@ textarea.tall{min-height:11rem}
 }
 .fmt-bar button:hover{border-color:var(--accent);color:var(--accent)}
 .fmt-hint{font-size:0.75rem;color:var(--muted);margin:0.35rem 0 0}
+.tag-suggestions{display:flex;flex-wrap:wrap;gap:0.3rem;margin-top:0.45rem}
+.tag-suggestions button{
+  padding:0.2rem 0.55rem;border:1px solid var(--border);border-radius:999px;
+  background:var(--card);color:var(--muted);font-size:0.76rem;cursor:pointer;
+}
+.tag-suggestions button:hover{border-color:var(--accent);color:var(--accent)}
+.tag-suggestions button.on{border-color:var(--accent);color:var(--accent);font-weight:600}
 input[type="file"]{padding:0.5rem 0.4rem;background:transparent;border:1px dashed var(--border)}
 .extra-fields{
   border:1px solid var(--border);border-radius:8px;padding:0.5rem 0.75rem;margin-bottom:1rem;
@@ -95,9 +102,10 @@ button.delete-btn:disabled{opacity:0.5}
     </div>
 
     <div class="field">
-      <label for="f-subcategory">Subcategory (optional)</label>
-      <input id="f-subcategory" type="text" list="subcategory-list" placeholder="e.g. AI">
-      <datalist id="subcategory-list"></datalist>
+      <label for="f-tags">Tags (optional)</label>
+      <input id="f-tags" type="text" placeholder="e.g. funny, nostalgia, video">
+      <p class="fmt-hint">Separate with commas. A post can carry as many as you like.</p>
+      <div class="tag-suggestions" id="tag-suggestions" hidden></div>
     </div>
 
     <div class="field" id="url-field">
@@ -196,9 +204,9 @@ button.delete-btn:disabled{opacity:0.5}
     formHeading: document.getElementById("form-heading"),
     title: document.getElementById("f-title"),
     category: document.getElementById("f-category"),
-    subcategory: document.getElementById("f-subcategory"),
+    tags: document.getElementById("f-tags"),
+    tagSuggestions: document.getElementById("tag-suggestions"),
     categoryList: document.getElementById("category-list"),
-    subcategoryList: document.getElementById("subcategory-list"),
     url: document.getElementById("f-url"),
     body: document.getElementById("f-body"),
     emailFields: document.getElementById("email-fields"),
@@ -385,20 +393,75 @@ button.delete-btn:disabled{opacity:0.5}
     return fields.url ? "link" : "post";
   }
 
-  // Populate category/subcategory suggestions from the live post index.
-  // Failure here is non-fatal -- the form still works, just without autocomplete.
+  // --- tags: a comma-separated field, plus one-tap chips for reuse --------
+
+  function parseTags(s) {
+    var seen = {};
+    return String(s || "").split(",")
+      .map(function (t) { return t.trim(); })
+      .filter(function (t) {
+        if (!t || seen[t.toLowerCase()]) return false;
+        seen[t.toLowerCase()] = true;
+        return true;
+      });
+  }
+
+  function currentTags() { return parseTags(els.tags.value); }
+
+  function setTags(list) {
+    els.tags.value = list.join(", ");
+    markActiveSuggestions();
+  }
+
+  function markActiveSuggestions() {
+    if (!els.tagSuggestions) return;
+    var active = currentTags().map(function (t) { return t.toLowerCase(); });
+    Array.prototype.forEach.call(els.tagSuggestions.children, function (btn) {
+      btn.classList.toggle("on", active.indexOf(btn.textContent.toLowerCase()) !== -1);
+    });
+  }
+
+  // Chips for tags already in use, so the same tag doesn't end up spelled
+  // three different ways across the archive.
+  function renderTagSuggestions(tagNames) {
+    if (!els.tagSuggestions) return;
+    els.tagSuggestions.innerHTML = "";
+    if (!tagNames.length) {
+      els.tagSuggestions.hidden = true;
+      return;
+    }
+    els.tagSuggestions.hidden = false;
+    tagNames.forEach(function (tag) {
+      var btn = document.createElement("button");
+      btn.type = "button";
+      btn.textContent = tag;
+      btn.addEventListener("click", function () {
+        var list = currentTags();
+        var i = list.map(function (t) { return t.toLowerCase(); }).indexOf(tag.toLowerCase());
+        if (i === -1) list.push(tag);
+        else list.splice(i, 1);
+        setTags(list);
+        els.tags.focus();
+      });
+      els.tagSuggestions.appendChild(btn);
+    });
+    markActiveSuggestions();
+  }
+
+  // Populate category and tag suggestions from the live post index.
+  // Failure here is non-fatal -- the form still works, just without them.
   function loadSuggestions() {
     fetch("../posts/index.json")
       .then(function (res) { return res.ok ? res.json() : []; })
       .then(function (posts) {
         var cats = new Set();
-        var subcats = new Set();
+        var tags = new Set();
         (posts || []).forEach(function (p) {
           (p.categories || []).forEach(function (c) { cats.add(c); });
-          if (p.subcategory) subcats.add(p.subcategory);
+          (p.tags || []).forEach(function (t) { tags.add(t); });
         });
         fillDatalist(els.categoryList, cats);
-        fillDatalist(els.subcategoryList, subcats);
+        renderTagSuggestions(Array.from(tags).sort());
       })
       .catch(function () { /* offline or first-ever post -- fine, just no suggestions */ });
   }
@@ -463,7 +526,7 @@ button.delete-btn:disabled{opacity:0.5}
     fm += "date: " + fields.date + "\n";
     fm += "type: " + fields.type + "\n";
     fm += "categories: [" + JSON.stringify(fields.category) + "]\n";
-    if (fields.subcategory) fm += "subcategory: " + JSON.stringify(fields.subcategory) + "\n";
+    if (fields.tags && fields.tags.length) fm += "tags: " + JSON.stringify(fields.tags) + "\n";
 
     if (fields.emailFrom) fm += "email_from: " + JSON.stringify(fields.emailFrom) + "\n";
     if (fields.emailSubject) fm += "email_subject: " + JSON.stringify(fields.emailSubject) + "\n";
@@ -590,6 +653,15 @@ button.delete-btn:disabled{opacity:0.5}
     }));
   }
 
+  // Where the site is served from. This page always lives at <root>/add/,
+  // so stripping that gives the root -- "/glob/" on github.io today, or "/"
+  // if the site is ever moved to its own domain. Worked out at runtime
+  // rather than hardcoded, so image links don't break on a move.
+  function siteRoot() {
+    var p = window.location.pathname.replace(/\/add\/?$/, "/");
+    return p.charAt(p.length - 1) === "/" ? p : p + "/";
+  }
+
   // Uploads each image in turn (GitHub's Contents API is one file per call)
   // and returns the site-relative paths to reference from the post body.
   function uploadImages(encoded, dateStr, slug) {
@@ -600,7 +672,7 @@ button.delete-btn:disabled{opacity:0.5}
         var ext = (item.file.name.split(".").pop() || "jpg").toLowerCase().replace(/[^a-z0-9]/g, "") || "jpg";
         var name = dateStr + "-" + slug + "-img" + (i + 1) + "." + ext;
         return githubPut("static/images/" + name, item.base64, "Add image for: " + slug).then(function () {
-          paths.push("/glob/images/" + name);
+          paths.push(siteRoot() + "images/" + name);
         });
       });
     });
@@ -616,7 +688,11 @@ button.delete-btn:disabled{opacity:0.5}
 
     els.title.value = f.title || "";
     els.category.value = (f.categories && f.categories[0]) || "";
-    els.subcategory.value = f.subcategory || "";
+    // Tags replaced subcategory; a post saved before that carries one, so
+    // it's loaded in as a tag and re-saving completes the conversion.
+    var loadedTags = (f.tags || []).slice();
+    if (f.subcategory && loadedTags.indexOf(f.subcategory) === -1) loadedTags.push(f.subcategory);
+    setTags(loadedTags);
     els.url.value = f.source_url || "";
     els.emailFrom.value = f.email_from || "";
     els.emailSubject.value = f.email_subject || "";
@@ -760,7 +836,7 @@ button.delete-btn:disabled{opacity:0.5}
           title: title,
           date: dateStr,
           category: category,
-          subcategory: els.subcategory.value.trim(),
+          tags: currentTags(),
           url: els.url.value.trim(),
           body: els.body.value,
           emailFrom: els.emailFrom.value.trim(),
