@@ -7,4 +7,4 @@ tags: ["Wind Power"]
 source_url: "https://www.scmp.com/economy/china-economy/article/3365180/china-taps-high-altitude-winds-power-generation-flying-craft-4000m"
 ---
 
-
+![](/images/2026-08-27-wind-power-by-blimp-at-13-000-feet-img1.webp)
