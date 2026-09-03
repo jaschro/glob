@@ -4,7 +4,7 @@ date: 2026-09-02
 type: tweet
 categories: ["Other"]
 tags: ["Religion"]
-source_url: "https://x.com/River/status/2089394978531262692"
+source_url: "https://x.com/veritebeaute/status/2094881233511821408"
 ---
 
 
