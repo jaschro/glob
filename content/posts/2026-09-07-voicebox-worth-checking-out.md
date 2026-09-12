@@ -7,4 +7,4 @@ tags: ["Voice"]
 source_url: "https://x.com/alex_verem/status/2096977799873712631"
 ---
 
-
+Also this is something quite similar: https://x.com/mikenevermiss/status/2098689336858309094
