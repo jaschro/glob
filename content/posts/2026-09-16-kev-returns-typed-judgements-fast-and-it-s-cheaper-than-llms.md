@@ -1,5 +1,5 @@
 ---
-title: "Kev returns 'Typed Judgements' fast and it's cheaper than LLMs"
+title: "Jev returns 'Typed Judgements' fast and it's cheaper than LLMs"
 date: 2026-09-16
 type: tweet
 categories: ["AI"]
