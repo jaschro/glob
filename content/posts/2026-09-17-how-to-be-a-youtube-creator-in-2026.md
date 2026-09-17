@@ -7,4 +7,5 @@ tags: ["YouTube"]
 source_url: "https://x.com/Argona0x/status/2100270972192338204"
 ---
 
-
+Also this: 
+https://x.com/Zephyr_hg/status/2100565683901772048
