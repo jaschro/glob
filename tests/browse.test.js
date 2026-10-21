@@ -57,12 +57,12 @@ const SHELL = `<!DOCTYPE html><html><body>
 // sender/subject for emails. Kept deliberately distinct from the titles so
 // body-match and title-match cases can be told apart.
 const FIXTURE = [
-  { title: "A good thread on prompt design", url: "/glob/posts/1/", date: "2026-08-10", type: "tweet", categories: ["Technology"], tags: ["AI", "prompting"], text: "Worth reading for the third reply about few-shot examples." },
-  { title: "Clear explainer on how CRDTs work", url: "/glob/posts/2/", date: "2026-08-12", type: "youtube", categories: ["Technology"], tags: ["Distributed Systems", "video"], text: "Conflict-free replicated data types, explained with animations." },
-  { title: "Really good live set for working", url: "/glob/posts/3/", date: "2026-08-13", type: "music", categories: ["Music"], tags: ["Live Sets", "video"], text: "Recorded at a warehouse in Berlin over three hours." },
-  { title: "Portfolio allocation snapshot", url: "/glob/posts/4/", date: "2026-08-14", type: "powerbi", categories: ["Investing"], tags: ["Snapshots"], text: "Allocation drifted toward equities this quarter." },
-  { title: "Note on the utility billing mixup", url: "/glob/posts/5/", date: "2026-08-15", type: "email", categories: ["Personal"], tags: ["Admin"], text: "The duplicate charge has been reversed. billing@utilityco.example Re: Account correction confirmed" },
-  { title: "Another AI thread from last year", url: "/glob/posts/6/", date: "2025-03-02", type: "tweet", categories: ["Technology"], tags: ["AI"], text: "Older thread, still relevant." }
+  { title: "A good thread on prompt design", url: "/glob/posts/1/", date: "2026-08-10", type: "tweet", categories: ["Technology"], swatches: ["6"], tags: ["AI", "prompting"], text: "Worth reading for the third reply about few-shot examples." },
+  { title: "Clear explainer on how CRDTs work", url: "/glob/posts/2/", date: "2026-08-12", type: "youtube", categories: ["Technology"], swatches: ["6"], tags: ["Distributed Systems", "video"], text: "Conflict-free replicated data types, explained with animations." },
+  { title: "Really good live set for working", url: "/glob/posts/3/", date: "2026-08-13", type: "music", categories: ["Music"], swatches: ["4"], tags: ["Live Sets", "video"], text: "Recorded at a warehouse in Berlin over three hours." },
+  { title: "Portfolio allocation snapshot", url: "/glob/posts/4/", date: "2026-08-14", type: "powerbi", categories: ["Investing"], swatches: ["2"], tags: ["Snapshots"], text: "Allocation drifted toward equities this quarter." },
+  { title: "Note on the utility billing mixup", url: "/glob/posts/5/", date: "2026-08-15", type: "email", categories: ["Personal"], swatches: ["7"], tags: ["Admin"], text: "The duplicate charge has been reversed. billing@utilityco.example Re: Account correction confirmed" },
+  { title: "Another AI thread from last year", url: "/glob/posts/6/", date: "2025-03-02", type: "tweet", categories: ["Technology"], swatches: ["6"], tags: ["AI"], text: "Older thread, still relevant." }
 ];
 
 async function run(url, fetchImpl) {
@@ -74,7 +74,15 @@ async function run(url, fetchImpl) {
 }
 
 function resultTitles(win) {
-  return Array.from(win.document.querySelectorAll("#browse-results a")).map((a) => a.textContent);
+  // Scoped to the title link: each row also holds category chip links.
+  return Array.from(win.document.querySelectorAll("#browse-results a.post-stream-title")).map((a) => a.textContent);
+}
+
+function resultChips(win) {
+  return Array.from(win.document.querySelectorAll("#browse-results .cat-cell a")).map((a) => ({
+    text: a.textContent,
+    slot: (a.className.match(/cat-c(\d)/) || [])[1]
+  }));
 }
 
 let passed = 0;
@@ -147,6 +155,70 @@ async function main() {
     assert.ok(snip, "expected an excerpt");
     assert.strictEqual(snip.querySelectorAll("img").length, 0, "raw markup in post text must not become real elements");
     assert.ok(snip.textContent.includes("<img"), "it should appear as literal text instead");
+  });
+
+  // Guards a silent failure: if the palette ever gains hues (mod 12) without
+  // matching .cat-cN rules in the CSS, those categories render default-blue
+  // with no error anywhere. Pure file read -- needs no Hugo.
+  await check("every colour slot the hash can emit has a matching CSS rule", async () => {
+    const partial = fs.readFileSync(path.join(ROOT, "layouts/partials/swatch.html"), "utf8");
+    const css = fs.readFileSync(path.join(ROOT, "static/css/style.css"), "utf8");
+    const modulus = Number((partial.match(/mod \$sum (\d+)/) || [])[1]);
+    assert.ok(modulus > 0, "could not read the modulus out of swatch.html");
+    const defined = new Set((css.match(/\.cat-c(\d+)\s*\{/g) || []).map((m) => Number(m.match(/\d+/)[0])));
+    const missing = [];
+    for (let i = 0; i < modulus; i++) if (!defined.has(i)) missing.push(i);
+    assert.deepStrictEqual(missing, [], "slots with no CSS rule: " + missing.join(", "));
+  });
+
+  // --- category chips in the result rows ---
+
+  await check("each row shows its category as a chip between the date and the title", async () => {
+    const win = await run("http://localhost/posts/?category=Music");
+    const row = win.document.querySelector("#browse-results li");
+    const kids = Array.from(row.children).map((el) => el.tagName.toLowerCase() + "." + (el.className || ""));
+    assert.deepStrictEqual(kids.slice(0, 3), ["time.", "span.cat-cell", "a.post-stream-title"],
+      "order must be date, category cell, then title");
+  });
+
+  await check("the chip carries the colour slot that came with the data", async () => {
+    const win = await run("http://localhost/posts/?category=Music");
+    assert.deepStrictEqual(resultChips(win), [{ text: "Music", slot: "4" }]);
+  });
+
+  await check("the category cell is still rendered when a post has no category", async () => {
+    const bare = [{ title: "No category", url: "/glob/posts/9/", date: "2026-08-16", type: "post", categories: [], swatches: [], tags: [], text: "x" }];
+    const win = await run("http://localhost/posts/", async () => ({ ok: true, json: async () => bare }));
+    const row = win.document.querySelector("#browse-results li");
+    const cell = row.querySelector(".cat-cell");
+    assert.ok(cell, "the cell must exist or that row's title breaks the column alignment");
+    assert.strictEqual(cell.children.length, 0);
+  });
+
+  await check("a missing or odd colour slot degrades to the default chip, no bogus class", async () => {
+    const odd = [{ title: "Odd", url: "/glob/posts/9/", date: "2026-08-16", type: "post", categories: ["Weird"], swatches: ["not-a-slot"], tags: [], text: "x" }];
+    const win = await run("http://localhost/posts/", async () => ({ ok: true, json: async () => odd }));
+    const chip = win.document.querySelector("#browse-results .cat-cell a");
+    assert.strictEqual(chip.className, "cat-chip");
+  });
+
+  await check("clicking a chip filters to that category, clicking again clears it", async () => {
+    const win = await run("http://localhost/posts/");
+    const doc = win.document;
+    const chipFor = (name) => Array.from(doc.querySelectorAll("#browse-results .cat-cell a")).find((a) => a.textContent === name);
+    chipFor("Music").dispatchEvent(new win.MouseEvent("click", { bubbles: true, cancelable: true }));
+    assert.deepStrictEqual(resultTitles(win), ["Really good live set for working"]);
+    assert.ok(win.location.search.includes("category=Music"));
+    chipFor("Music").dispatchEvent(new win.MouseEvent("click", { bubbles: true, cancelable: true }));
+    assert.strictEqual(resultTitles(win).length, 6);
+  });
+
+  await check("clicking a chip does not navigate away to its href", async () => {
+    const win = await run("http://localhost/posts/");
+    const chip = win.document.querySelector("#browse-results .cat-cell a");
+    const evt = new win.MouseEvent("click", { bubbles: true, cancelable: true });
+    chip.dispatchEvent(evt);
+    assert.strictEqual(evt.defaultPrevented, true);
   });
 
   await check("category filter narrows correctly", async () => {

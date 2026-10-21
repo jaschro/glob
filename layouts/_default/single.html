@@ -6,7 +6,7 @@
       <div class="post-meta">
         <time datetime="{{ .Date.Format "2006-01-02" }}">{{ .Date.Format "January 2, 2006" }}</time>
         {{ with .Params.categories }}
-          {{ range . }}<a class="tag" href="{{ "posts/" | relURL }}?category={{ . | urlquery }}">{{ . }}</a>{{ end }}
+          {{ range . }}<a class="cat-tag cat-c{{ partial "swatch.html" . }}" href="{{ "posts/" | relURL }}?category={{ . | urlquery }}">{{ . }}</a>{{ end }}
         {{ end }}
         {{/* Posts saved before tags existed carry a single "subcategory" --
              shown here as a tag so nothing has to be migrated by hand. */}}

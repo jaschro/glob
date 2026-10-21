@@ -18,12 +18,18 @@
     {{ $tags := $p.Params.tags | default slice }}
     {{ with $p.Params.subcategory }}{{ $tags = $tags | append . }}{{ end }}
     {{ $tags = $tags | uniq }}
+    {{/* The colour slot travels with the data so the browser doesn't have to
+         re-derive it -- see layouts/partials/swatch.html. */}}
+    {{ $cats := $p.Params.categories | default slice }}
+    {{ $swatches := slice }}
+    {{ range $cats }}{{ $swatches = $swatches | append (partial "swatch.html" .) }}{{ end }}
     {
       "title": {{ $p.Title | jsonify }},
       "url": {{ $p.RelPermalink | jsonify }},
       "date": {{ $p.Date.Format "2006-01-02" | jsonify }},
       "type": {{ $p.Params.type | jsonify }},
-      "categories": {{ $p.Params.categories | jsonify }},
+      "categories": {{ $cats | jsonify }},
+      "swatches": {{ $swatches | jsonify }},
       "tags": {{ $tags | jsonify }},
       "text": {{ $searchText | jsonify }}
     }

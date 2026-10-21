@@ -1,0 +1,34 @@
+{{- /*
+  Stable colour slot (0-9) for a category name, Airtable-style: the same
+  category always gets the same colour, and adding a new category never
+  shifts anyone else's -- which assigning by sort position would.
+
+  md5 of the lowercased name, then the sum of all its hex digits, mod 10.
+  Summing the whole digest rather than its first byte matters: on the real
+  category list, first-byte-mod-12 piled six categories into one colour,
+  while this spreads them across all ten. Lowercased so "AI" and "ai" match.
+
+  Computed here, in one place, so the Posts list and the post page can't
+  drift apart on what colour a category is.
+*/ -}}
+{{- $hex := dict "0" 0 "1" 1 "2" 2 "3" 3 "4" 4 "5" 5 "6" 6 "7" 7 "8" 8 "9" 9 "a" 10 "b" 11 "c" 12 "d" 13 "e" 14 "f" 15 -}}
+{{- $name := lower (printf "%v" .) -}}
+
+{{- /* With more categories than colours some will share one, as they do in
+       Airtable. Pin a category here when the hash lands two you use side by
+       side on the same colour. Slots are 0-9, matching the .cat-cN rules in
+       static/css/style.css:
+         0 blue   1 violet  2 pink   3 red   4 orange
+         5 amber  6 green   7 teal   8 cyan  9 magenta
+       Keys must be lowercase. e.g. dict "humor" 4  would make Humor orange. */ -}}
+{{- $pinned := dict -}}
+
+{{- if isset $pinned $name -}}
+  {{- index $pinned $name -}}
+{{- else -}}
+  {{- $sum := 0 -}}
+  {{- range (split (md5 $name) "") -}}
+    {{- $sum = add $sum (index $hex .) -}}
+  {{- end -}}
+  {{- mod $sum 10 -}}
+{{- end -}}

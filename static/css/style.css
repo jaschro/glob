@@ -129,6 +129,67 @@ a { color: var(--accent); }
   min-width: 5.5rem;
 }
 
+/* --- category chips (Posts list + post pages) ---------------------------
+   Each category gets a stable colour slot from layouts/partials/swatch.html.
+   Only the hue varies per slot; the lightness/saturation recipe is shared,
+   so every chip reads as one family and dark mode is handled once. */
+
+.cat-chip, .cat-tag {
+  --cat-h: 215;
+  display: inline-block;
+  font-size: 0.74rem;
+  line-height: 1.5;
+  padding: 0.1rem 0.55rem;
+  border-radius: 999px;
+  text-decoration: none;
+  white-space: nowrap;
+  background: hsl(var(--cat-h) 72% 91%);
+  color: hsl(var(--cat-h) 58% 27%);
+}
+
+.cat-chip:hover, .cat-tag:hover {
+  background: hsl(var(--cat-h) 72% 85%);
+}
+
+@media (prefers-color-scheme: dark) {
+  .cat-chip, .cat-tag {
+    background: hsl(var(--cat-h) 45% 52% / 0.26);
+    color: hsl(var(--cat-h) 65% 78%);
+  }
+  .cat-chip:hover, .cat-tag:hover {
+    background: hsl(var(--cat-h) 45% 55% / 0.38);
+  }
+}
+
+/* Ten hues spaced around the wheel, kept clear of each other's neighbours
+   so two different categories don't read as the same colour. */
+.cat-c0 { --cat-h: 215; }  /* blue    */
+.cat-c1 { --cat-h: 262; }  /* violet  */
+.cat-c2 { --cat-h: 340; }  /* pink    */
+.cat-c3 { --cat-h: 8;   }  /* red     */
+.cat-c4 { --cat-h: 28;  }  /* orange  */
+.cat-c5 { --cat-h: 48;  }  /* amber   */
+.cat-c6 { --cat-h: 95;  }  /* green   */
+.cat-c7 { --cat-h: 160; }  /* teal    */
+.cat-c8 { --cat-h: 190; }  /* cyan    */
+.cat-c9 { --cat-h: 295; }  /* magenta */
+
+/* The column that keeps post titles aligned down the page. */
+.cat-cell {
+  flex: 0 0 auto;
+  min-width: 7.5rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+}
+
+.post-stream-item .post-stream-title { flex: 1 1 12rem; }
+
+@media (max-width: 560px) {
+  .cat-cell { min-width: 0; }
+  .post-stream-item .post-stream-title { flex-basis: 100%; }
+}
+
 .result-snippet {
   flex-basis: 100%;
   margin: 0.1rem 0 0.2rem 6.25rem;

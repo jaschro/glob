@@ -312,8 +312,33 @@
       time.textContent = formatDate(item.date);
       li.appendChild(time);
 
+      // Category chips sit in their own fixed-width cell between the date and
+      // the title, so titles line up down the page. The cell is rendered even
+      // when a post has no category, otherwise that row's title would slide
+      // left and break the column.
+      var catCell = document.createElement("span");
+      catCell.className = "cat-cell";
+      (item.categories || []).forEach(function (cat, i) {
+        var chip = document.createElement("a");
+        chip.href = "#";
+        // The slot comes from layouts/partials/swatch.html via the JSON, so
+        // the colour matches what the post's own page shows.
+        var slot = (item.swatches || [])[i];
+        chip.className = "cat-chip" + (/^[0-9]$/.test(String(slot)) ? " cat-c" + slot : "");
+        chip.textContent = cat;
+        chip.title = "Show only " + cat;
+        chip.addEventListener("click", function (e) {
+          e.preventDefault();
+          state.category = (state.category === cat) ? "" : cat;
+          afterFilterChange();
+        });
+        catCell.appendChild(chip);
+      });
+      li.appendChild(catCell);
+
       var a = document.createElement("a");
       a.href = item.url;
+      a.className = "post-stream-title";
       a.textContent = item.title;
       li.appendChild(a);
 
