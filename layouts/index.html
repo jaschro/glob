@@ -4,10 +4,12 @@
   <p class="section-intro">{{ .Site.Params.description }}</p>
 </header>
 
-<h2>Recent</h2>
+<h2>Posts</h2>
 <ul class="post-stream">
   {{ $posts := where .Site.RegularPages "Section" "posts" }}
-  {{ range first 10 $posts.ByDate.Reverse }}
+  {{/* Every post, newest first -- no cap. (A literal "first 10000" would do
+       the same thing while implying a ceiling that doesn't really exist.) */}}
+  {{ range $posts.ByDate.Reverse }}
     {{ partial "post-row.html" . }}
   {{ end }}
 </ul>
