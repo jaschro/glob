@@ -55,10 +55,7 @@
       <p class="noscript-note">Filtering and search need JavaScript. Here's everything, unfiltered:</p>
       <ul class="post-stream">
         {{ range .Pages.ByDate.Reverse }}
-        <li class="post-stream-item">
-          <time datetime="{{ .Date.Format "2006-01-02" }}">{{ .Date.Format "Jan 2, 2006" }}</time>
-          <a href="{{ .RelPermalink }}">{{ .Title }}</a>
-        </li>
+        {{ partial "post-row.html" . }}
         {{ end }}
       </ul>
     </noscript>

@@ -157,6 +157,19 @@ async function main() {
     assert.ok(snip.textContent.includes("<img"), "it should appear as literal text instead");
   });
 
+  // Post rows are built twice: in JS here, and in Hugo for the homepage and
+  // the noscript fallback (layouts/partials/post-row.html). If the two stop
+  // agreeing on class names the shared CSS silently stops applying to one of
+  // them, with no error anywhere -- so check the Hugo side uses the same ones.
+  await check("the server-rendered row markup matches what this file builds", async () => {
+    const row = fs.readFileSync(path.join(ROOT, "layouts/partials/post-row.html"), "utf8");
+    ["post-stream-item", "cat-cell", "cat-chip", "post-stream-title"].forEach(function (cls) {
+      assert.ok(row.indexOf(cls) !== -1, "post-row.html is missing the \"" + cls + "\" class");
+    });
+    assert.ok(/cat-c\{\{\s*partial "swatch.html"/.test(row),
+      "post-row.html should take its colour from the swatch partial, not its own logic");
+  });
+
   // Guards a silent failure: if the palette ever gains hues (mod 12) without
   // matching .cat-cN rules in the CSS, those categories render default-blue
   // with no error anywhere. Pure file read -- needs no Hugo.

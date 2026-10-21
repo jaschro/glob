@@ -1,0 +1,23 @@
+{{- /*
+  One post row, shared by the server-rendered lists (the homepage's Recent
+  list and the Posts page's noscript fallback) so they match each other.
+
+  The Posts page itself builds its rows in JavaScript -- see the render()
+  function in static/js/browse.js -- because it filters live. Both paths
+  produce the same markup and take their colour from the same partial, so a
+  category looks identical wherever it appears.
+
+  Chips here link through to the Posts page filtered by that category; on
+  the Posts page itself they filter in place without navigating.
+*/ -}}
+<li class="post-stream-item">
+  <time datetime="{{ .Date.Format "2006-01-02" }}">{{ .Date.Format "Jan 2, 2006" }}</time>
+  {{/* Rendered even when empty, or this row's title slides left and breaks
+       the column that keeps titles aligned down the page. */}}
+  <span class="cat-cell">
+    {{- range .Params.categories -}}
+      <a class="cat-chip cat-c{{ partial "swatch.html" . }}" href="{{ "posts/" | relURL }}?category={{ . | urlquery }}">{{ . }}</a>
+    {{- end -}}
+  </span>
+  <a class="post-stream-title" href="{{ .RelPermalink }}">{{ .Title }}</a>
+</li>
