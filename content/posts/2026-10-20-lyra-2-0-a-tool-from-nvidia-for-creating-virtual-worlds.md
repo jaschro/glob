@@ -2,7 +2,7 @@
 title: "Lyra 2.0: A tool from NVIDIA for creating Virtual Worlds"
 date: 2026-10-20
 type: post
-categories: ["Technology"]
+categories: ["Tech"]
 tags: ["Virtual Worlds"]
 ---
 
